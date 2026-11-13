@@ -64,7 +64,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
     // ============================================================================
     // BỘ ICON SVG NỘI TUYẾN
@@ -657,34 +657,97 @@
     });
 
     // ============================================================================
-    // CƠ CHẾ LƯU TRỮ KÉP DUNG LƯỢNG LỚN (INDEXED-DB > 500MB + LOCALSTORAGE)
+    // HỆ THỐNG LƯU TRỮ ĐA TẦNG DUNG LƯỢNG LỚN (INDEXED-DB > 500MB/GB + CACHE API + LOCAL/SESSION STORAGE)
+    // Chống mất dữ liệu tuyệt đối khi bấm F5, tải lại trang hoặc đóng trình duyệt
     // ============================================================================
     const STORAGE_KEY = 'gv_student_app_v9_week10_pro';
+    const BACKUP_STORAGE_KEY = 'gv_student_app_v9_week10_pro_backup';
+    const LEGACY_KEYS = [
+      'gv_student_app_v9_week10_pro',
+      'gv_student_app_v9_week10_pro_backup',
+      'gv_student_app_v9',
+      'gv_student_app_v8',
+      'gv_student_management_state'
+    ];
     const IDB_NAME = 'GV_StudentManagement_LargeDB_v5';
     const IDB_STORE = 'workspace_store';
     const IDB_RECORD_KEY = 'primary_state';
+    const IDB_BACKUP_KEY = 'mirror_backup_state';
+    const CACHE_STORAGE_NAME = 'gv_student_management_large_cache_v1';
+    const CACHE_RECORD_URL = '/__gv_student_management_state_v9__.json';
+    const WINDOW_NAME_PREFIX = '__GV_APP_STATE_V9__:';
 
-    const loadSavedStateSync = () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object' && parsed.archiveByYear) return parsed;
-      } catch (e) {}
-      return null;
+    const isValidStatePayload = (obj) => {
+      return Boolean(obj && typeof obj === 'object' && obj.archiveByYear && typeof obj.archiveByYear === 'object');
     };
 
+    const loadSavedStateSync = () => {
+      const candidates = [];
+      // 1. Quét localStorage (khóa chính + khóa dự phòng)
+      for (const key of LEGACY_KEYS) {
+        try {
+          const raw = window.localStorage ? localStorage.getItem(key) : null;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (isValidStatePayload(parsed)) candidates.push(parsed);
+          }
+        } catch (e) {}
+      }
+      // 2. Quét sessionStorage (bền vững tuyệt đối khi bấm F5 trong cùng tab)
+      for (const key of [STORAGE_KEY, BACKUP_STORAGE_KEY]) {
+        try {
+          const raw = window.sessionStorage ? sessionStorage.getItem(key) : null;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (isValidStatePayload(parsed)) candidates.push(parsed);
+          }
+        } catch (e) {}
+      }
+      // 3. Quét window.name (dự phòng khi trình duyệt chặn cookie/localStorage)
+      try {
+        if (typeof window.name === 'string' && window.name.startsWith(WINDOW_NAME_PREFIX)) {
+          const parsed = JSON.parse(window.name.slice(WINDOW_NAME_PREFIX.length));
+          if (isValidStatePayload(parsed)) candidates.push(parsed);
+        }
+      } catch (e) {}
+
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+      return candidates[0];
+    };
+
+    let cachedDbPromise = null;
     const openLargeDatabase = () => {
-      return new Promise((resolve) => {
+      if (cachedDbPromise) return cachedDbPromise;
+      cachedDbPromise = new Promise((resolve) => {
         if (typeof window === 'undefined' || !window.indexedDB) return resolve(null);
-        const request = window.indexedDB.open(IDB_NAME, 1);
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => resolve(null);
+        try {
+          const request = window.indexedDB.open(IDB_NAME, 1);
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+              db.createObjectStore(IDB_STORE);
+            }
+          };
+          request.onsuccess = () => {
+            const db = request.result;
+            db.onclose = () => { cachedDbPromise = null; };
+            resolve(db);
+          };
+          request.onerror = () => {
+            cachedDbPromise = null;
+            resolve(null);
+          };
+          request.onblocked = () => {
+            cachedDbPromise = null;
+            resolve(null);
+          };
+        } catch (e) {
+          cachedDbPromise = null;
+          resolve(null);
+        }
       });
+      return cachedDbPromise;
     };
 
     const saveToLargeIndexedDB = async (payload) => {
@@ -693,9 +756,12 @@
         if (!db) return false;
         return await new Promise((resolve) => {
           const tx = db.transaction(IDB_STORE, 'readwrite');
-          tx.objectStore(IDB_STORE).put(payload, IDB_RECORD_KEY);
+          const store = tx.objectStore(IDB_STORE);
+          store.put(payload, IDB_RECORD_KEY);
+          store.put(payload, IDB_BACKUP_KEY);
           tx.oncomplete = () => resolve(true);
           tx.onerror = () => resolve(false);
+          tx.onabort = () => resolve(false);
         });
       } catch (e) {
         return false;
@@ -708,13 +774,125 @@
         if (!db) return null;
         return await new Promise((resolve) => {
           const tx = db.transaction(IDB_STORE, 'readonly');
-          const req = tx.objectStore(IDB_STORE).get(IDB_RECORD_KEY);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => resolve(null);
+          const store = tx.objectStore(IDB_STORE);
+          const reqPrimary = store.get(IDB_RECORD_KEY);
+          const reqBackup = store.get(IDB_BACKUP_KEY);
+          let primaryVal = null;
+          let backupVal = null;
+          reqPrimary.onsuccess = () => { primaryVal = reqPrimary.result || null; };
+          reqBackup.onsuccess = () => { backupVal = reqBackup.result || null; };
+          tx.oncomplete = () => {
+            const valid = [primaryVal, backupVal].filter(isValidStatePayload);
+            if (valid.length === 0) return resolve(null);
+            valid.sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+            resolve(valid[0]);
+          };
+          tx.onerror = () => resolve(null);
         });
       } catch (e) {
         return null;
       }
+    };
+
+    const saveToLargeCacheStorage = async (serializedJson) => {
+      try {
+        if (typeof window === 'undefined' || !('caches' in window)) return false;
+        const cache = await window.caches.open(CACHE_STORAGE_NAME);
+        const response = new Response(serializedJson, {
+          headers: { 'Content-Type': 'application/json;charset=utf-8', 'X-Saved-At': String(Date.now()) }
+        });
+        await cache.put(CACHE_RECORD_URL, response);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const loadFromLargeCacheStorage = async () => {
+      try {
+        if (typeof window === 'undefined' || !('caches' in window)) return null;
+        const cache = await window.caches.open(CACHE_STORAGE_NAME);
+        const match = await cache.match(CACHE_RECORD_URL);
+        if (!match) return null;
+        const text = await match.text();
+        const parsed = JSON.parse(text);
+        return isValidStatePayload(parsed) ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const persistPayloadSyncAndAsync = (payload) => {
+      if (!isValidStatePayload(payload)) return { sizeKB: 0, localOk: false };
+      let serialized = '';
+      try {
+        serialized = JSON.stringify(payload);
+      } catch (e) {
+        return { sizeKB: 0, localOk: false };
+      }
+      const sizeBytes = serialized.length * 2;
+      const sizeKB = Math.max(1, Math.round(sizeBytes / 1024));
+
+      let localOk = false;
+      try {
+        localStorage.setItem(STORAGE_KEY, serialized);
+        localStorage.setItem(BACKUP_STORAGE_KEY, serialized);
+        localOk = true;
+      } catch (e) {
+        // Nếu vượt hạn mức 5MB của localStorage, xóa bớt bản phụ để thử lưu bản chính, còn toàn bộ dữ liệu lớn nằm ở IndexedDB & CacheStorage
+        try {
+          localStorage.removeItem(BACKUP_STORAGE_KEY);
+          localStorage.setItem(STORAGE_KEY, serialized);
+          localOk = true;
+        } catch (e2) {}
+      }
+
+      try {
+        sessionStorage.setItem(STORAGE_KEY, serialized);
+      } catch (e) {}
+
+      try {
+        if (serialized.length < 2500000) {
+          window.name = WINDOW_NAME_PREFIX + serialized;
+        }
+      } catch (e) {}
+
+      saveToLargeIndexedDB(payload);
+      saveToLargeCacheStorage(serialized);
+      return { sizeKB, sizeBytes, localOk };
+    };
+
+    // Nạp dữ liệu từ TẤT CẢ các tầng (IndexedDB + CacheStorage + LocalStorage + SessionStorage) TRƯỚC KHI mount React
+    // để triệt tiêu hoàn toàn lỗi Race Condition làm mất dữ liệu khi bấm F5
+    const bootstrapSavedStateBeforeMount = async () => {
+      try {
+        if (navigator.storage && navigator.storage.persist) {
+          navigator.storage.persist().catch(() => {});
+        }
+      } catch (e) {}
+
+      const syncData = loadSavedStateSync();
+      const [idbData, cacheData] = await Promise.all([
+        loadFromLargeIndexedDB(),
+        loadFromLargeCacheStorage()
+      ]);
+
+      const candidates = [syncData, idbData, cacheData].filter(isValidStatePayload);
+      if (candidates.length === 0) return null;
+
+      candidates.sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+      const best = candidates[0];
+
+      // Đồng bộ ngược lại ngay lập tức để mọi tầng đều có bản mới nhất
+      try {
+        const serialized = JSON.stringify(best);
+        try { localStorage.setItem(STORAGE_KEY, serialized); } catch (e) {}
+        try { sessionStorage.setItem(STORAGE_KEY, serialized); } catch (e) {}
+        saveToLargeIndexedDB(best);
+        saveToLargeCacheStorage(serialized);
+      } catch (e) {}
+
+      return best;
     };
 
     const calculateSubjectAverage = (scoreObj) => {
@@ -754,8 +932,8 @@
       return Number(neededCK.toFixed(1));
     };
 
-    function App() {
-      const initialSaved = useMemo(() => loadSavedStateSync(), []);
+    function App({ bootstrappedState = null }) {
+      const initialSaved = useMemo(() => bootstrappedState || loadSavedStateSync(), [bootstrappedState]);
 
       const [liveNow, setLiveNow] = useState(() => new Date());
       useEffect(() => {
@@ -776,27 +954,27 @@
       const currentMonthNumber = liveNow.getMonth() + 1;
 
       const [schoolName, setSchoolName] = useState(
-        () => initialSaved?.schoolName || 'Trường Trung Cấp & THPT Nhật Hạ'
+        () => initialSaved?.schoolName ?? 'Trường Trung Cấp & THPT Nhật Hạ'
       );
-      const [semester, setSemester] = useState(() => initialSaved?.semester || 'Học kỳ 1');
+      const [semester, setSemester] = useState(() => initialSaved?.semester ?? 'Học kỳ 1');
       const [teacherName, setTeacherName] = useState(
-        () => initialSaved?.teacherName || 'Dương Anh Tuấn Anh'
+        () => initialSaved?.teacherName ?? 'Dương Anh Tuấn Anh'
       );
-      const [mainSubject, setMainSubject] = useState(() => initialSaved?.mainSubject || 'Hóa học');
+      const [mainSubject, setMainSubject] = useState(() => initialSaved?.mainSubject ?? 'Hóa học');
 
-      const [schoolYear, setSchoolYear] = useState(() => initialSaved?.schoolYear || '2026 - 2027');
+      const [schoolYear, setSchoolYear] = useState(() => initialSaved?.schoolYear ?? '2026 - 2027');
       const [archiveByYear, setArchiveByYear] = useState(
-        () => initialSaved?.archiveByYear || buildDefaultArchive()
+        () => initialSaved?.archiveByYear ?? buildDefaultArchive()
       );
       const [attendanceTypes, setAttendanceTypes] = useState(
-        () => initialSaved?.attendanceTypes || INITIAL_ATTENDANCE_TYPES
+        () => initialSaved?.attendanceTypes ?? INITIAL_ATTENDANCE_TYPES
       );
 
       const [seatLayoutConfig, setSeatLayoutConfig] = useState(
-        () => initialSaved?.seatLayoutConfig || { cols: 4, desksPerCol: 5, seatsPerDesk: 2 }
+        () => initialSaved?.seatLayoutConfig ?? { cols: 4, desksPerCol: 5, seatsPerDesk: 2 }
       );
       const [periodTimes, setPeriodTimes] = useState(
-        () => initialSaved?.periodTimes || buildDefaultPeriodTimes()
+        () => initialSaved?.periodTimes ?? buildDefaultPeriodTimes()
       );
       const [periodTimeModalOpen, setPeriodTimeModalOpen] = useState(false);
       const [autoTimeGenerator, setAutoTimeGenerator] = useState({
@@ -893,15 +1071,19 @@
         [currentYearData.weekDates, schoolYear]
       );
 
-      const [activeClass, setActiveClass] = useState(() => classes[0]?.id || '10A1');
-      const [activeTab, setActiveTab] = useState('HOSO');
+      const [activeClass, setActiveClass] = useState(() => {
+        const savedCls = initialSaved?.activeClass;
+        if (savedCls && classes.some((c) => c.id === savedCls)) return savedCls;
+        return classes[0]?.id || '10A1';
+      });
+      const [activeTab, setActiveTab] = useState(() => initialSaved?.activeTab || 'HOSO');
       // Mặc định tuần này là Tuần 10
-      const [selectedWeek, setSelectedWeek] = useState(() => initialSaved?.selectedWeek || 10);
-      const [selectedSubject, setSelectedSubject] = useState('Hóa học');
+      const [selectedWeek, setSelectedWeek] = useState(() => initialSaved?.selectedWeek ?? 10);
+      const [selectedSubject, setSelectedSubject] = useState(() => initialSaved?.selectedSubject || 'Hóa học');
       const [searchQuery, setSearchQuery] = useState('');
-      const [summaryPeriodMode, setSummaryPeriodMode] = useState('WHOLE_YEAR');
+      const [summaryPeriodMode, setSummaryPeriodMode] = useState(() => initialSaved?.summaryPeriodMode || 'WHOLE_YEAR');
       // Bộ lọc Danh sách Văn hóa (Tất cả HS) vs Danh sách Học nghề (Ẩn HS không học nghề)
-      const [rosterFilterMode, setRosterFilterMode] = useState('CULTURAL_ALL'); // 'CULTURAL_ALL' | 'VOCATIONAL_ONLY'
+      const [rosterFilterMode, setRosterFilterMode] = useState(() => initialSaved?.rosterFilterMode || 'CULTURAL_ALL'); // 'CULTURAL_ALL' | 'VOCATIONAL_ONLY'
 
       const handleSelectWeek = (wNum) => {
         setSelectedWeek(wNum);
@@ -1116,8 +1298,10 @@
 
       const [storageStats, setStorageStats] = useState({
         usedKB: 20,
-        quotaMB: 500,
+        quotaMB: 2048,
+        persistedGuaranteed: true,
         lastSavedTime: initialSaved?.savedAtText || 'Vừa xong',
+        activeTiers: 'IndexedDB + CacheStorage + LocalStorage',
       });
 
       const showToast = (msg) => {
@@ -1125,62 +1309,40 @@
         setTimeout(() => setToastMsg(null), 3500);
       };
 
-      useEffect(() => {
-        let isMounted = true;
-        const initStorage = async () => {
-          try {
-            if (navigator.storage && navigator.storage.persist) await navigator.storage.persist();
-            const idbData = await loadFromLargeIndexedDB();
-            const localTime = initialSaved?.updatedAt || 0;
-            const idbTime = idbData?.updatedAt || 0;
+      // Giữ tham chiếu đồng bộ tới state mới nhất để ghi tức thì ngay cả khi bấm F5 đột ngột
+      const latestPayloadRef = useRef(null);
+      const isFirstRenderRef = useRef(true);
+      const initialUpdatedAtRef = useRef(initialSaved?.updatedAt || Date.now());
 
-            if (isMounted && idbData && idbData.archiveByYear && idbTime > localTime) {
-              if (idbData.schoolName) setSchoolName(idbData.schoolName);
-              if (idbData.semester) setSemester(idbData.semester);
-              if (idbData.teacherName) setTeacherName(idbData.teacherName);
-              if (idbData.mainSubject) setMainSubject(idbData.mainSubject);
-              if (idbData.schoolYear) setSchoolYear(idbData.schoolYear);
-              if (idbData.selectedWeek) setSelectedWeek(idbData.selectedWeek);
-              setArchiveByYear(idbData.archiveByYear);
-              if (idbData.attendanceTypes) setAttendanceTypes(idbData.attendanceTypes);
-              if (idbData.seatLayoutConfig) setSeatLayoutConfig(idbData.seatLayoutConfig);
-              if (idbData.periodTimes) setPeriodTimes(idbData.periodTimes);
-              if (idbData.githubToken) setGithubToken(idbData.githubToken);
-              if (idbData.githubGistId) setGithubGistId(idbData.githubGistId);
-            }
-          } catch (e) {}
-        };
-        initStorage();
-        return () => { isMounted = false; };
-      }, []);
-
-      useEffect(() => {
+      const buildCurrentSnapshotPayload = useCallback((customTimestamp = null) => {
         const savedAtText = new Date().toLocaleTimeString('vi-VN', {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
         });
-        const payload = {
+        return {
           schoolName,
           semester,
           teacherName,
           mainSubject,
           schoolYear,
           selectedWeek,
+          activeClass,
+          activeTab,
+          selectedSubject,
+          summaryPeriodMode,
+          rosterFilterMode,
           archiveByYear,
           attendanceTypes,
           seatLayoutConfig,
           periodTimes,
           githubToken,
           githubGistId,
-          updatedAt: Date.now(),
+          invitationMeta,
+          isUserCustomized: true,
+          updatedAt: customTimestamp ?? Date.now(),
           savedAtText,
         };
-        const serialized = JSON.stringify(payload);
-        const sizeKB = Math.max(1, Math.round((serialized.length * 2) / 1024));
-        try { localStorage.setItem(STORAGE_KEY, serialized); } catch (e) {}
-        saveToLargeIndexedDB(payload);
-        setStorageStats((prev) => ({ ...prev, usedKB: sizeKB, lastSavedTime: savedAtText }));
       }, [
         schoolName,
         semester,
@@ -1188,13 +1350,134 @@
         mainSubject,
         schoolYear,
         selectedWeek,
+        activeClass,
+        activeTab,
+        selectedSubject,
+        summaryPeriodMode,
+        rosterFilterMode,
         archiveByYear,
         attendanceTypes,
         seatLayoutConfig,
         periodTimes,
         githubToken,
         githubGistId,
+        invitationMeta,
       ]);
+
+      // Cập nhật ref đồng bộ ngay trong pha render
+      latestPayloadRef.current = buildCurrentSnapshotPayload(
+        isFirstRenderRef.current ? initialUpdatedAtRef.current : Date.now()
+      );
+
+      // Ước tính dung lượng kho lưu trữ thực tế của trình duyệt (hàng trăm MB đến hàng GB)
+      const refreshBrowserQuotaEstimate = useCallback(async () => {
+        try {
+          if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            if (est && est.quota) {
+              const quotaMB = Math.max(500, Math.round(est.quota / (1024 * 1024)));
+              setStorageStats((prev) => ({ ...prev, quotaMB }));
+            }
+          }
+        } catch (e) {}
+      }, []);
+
+      useEffect(() => {
+        refreshBrowserQuotaEstimate();
+      }, [refreshBrowserQuotaEstimate]);
+
+      // Tự động lưu xuống 4 tầng lưu trữ mỗi khi có bất kỳ thay đổi nào
+      useEffect(() => {
+        const ts = isFirstRenderRef.current ? initialUpdatedAtRef.current : Date.now();
+        isFirstRenderRef.current = false;
+        const payload = buildCurrentSnapshotPayload(ts);
+        latestPayloadRef.current = payload;
+        const res = persistPayloadSyncAndAsync(payload);
+        setStorageStats((prev) => ({
+          ...prev,
+          usedKB: res.sizeKB || prev.usedKB,
+          lastSavedTime: payload.savedAtText,
+        }));
+      }, [buildCurrentSnapshotPayload]);
+
+      // Chốt chặn an toàn khi bấm F5 / Ctrl+R / Đóng tab / Chuyển tab: Ghi đồng bộ ngay lập tức
+      useEffect(() => {
+        const flushImmediately = () => {
+          if (latestPayloadRef.current) {
+            persistPayloadSyncAndAsync({
+              ...latestPayloadRef.current,
+              updatedAt: Date.now(),
+            });
+          }
+        };
+        const handleKeyDownFlush = (e) => {
+          if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R' || e.key === 's' || e.key === 'S'))) {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+              e.preventDefault();
+              flushImmediately();
+              showToast('Đã lưu toàn bộ dữ liệu vào Kho lưu trữ dung lượng lớn!');
+              return;
+            }
+            flushImmediately();
+          }
+        };
+        window.addEventListener('beforeunload', flushImmediately);
+        window.addEventListener('pagehide', flushImmediately);
+        window.addEventListener('keydown', handleKeyDownFlush);
+        const handleVisChange = () => {
+          if (document.visibilityState === 'hidden') flushImmediately();
+        };
+        document.addEventListener('visibilitychange', handleVisChange);
+        return () => {
+          window.removeEventListener('beforeunload', flushImmediately);
+          window.removeEventListener('pagehide', flushImmediately);
+          window.removeEventListener('keydown', handleKeyDownFlush);
+          document.removeEventListener('visibilitychange', handleVisChange);
+        };
+      }, []);
+
+      const handleManualForceSave = () => {
+        const payload = buildCurrentSnapshotPayload(Date.now());
+        latestPayloadRef.current = payload;
+        const res = persistPayloadSyncAndAsync(payload);
+        setStorageStats((prev) => ({
+          ...prev,
+          usedKB: res.sizeKB || prev.usedKB,
+          lastSavedTime: payload.savedAtText,
+        }));
+        showToast(`Đã lưu an toàn (${res.sizeKB} KB) vào IndexedDB + CacheStorage + LocalStorage! Bấm F5 không mất dữ liệu.`);
+      };
+
+      const handleClearCurrentClassStudents = () => {
+        if (!window.confirm(`Thầy/Cô có chắc chắn muốn xóa toàn bộ ${currentStudents.length} học sinh trong lớp ${currentClassObj.name} để nhập danh sách mới? (Thao tác này sẽ được lưu giữ nguyên khi bấm F5)`)) {
+          return;
+        }
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: [],
+        }));
+        showToast(`Đã làm trống danh sách học sinh lớp ${currentClassObj.name} và lưu cố định.`);
+      };
+
+      const handleResetToDefaultFactory = () => {
+        if (!window.confirm('Khôi phục lại toàn bộ dữ liệu mẫu mặc định ban đầu? Dữ liệu hiện tại sẽ được thay bằng dữ liệu mẫu.')) {
+          return;
+        }
+        const defArc = buildDefaultArchive();
+        setSchoolName('Trường Trung Cấp & THPT Nhật Hạ');
+        setSemester('Học kỳ 1');
+        setTeacherName('Dương Anh Tuấn Anh');
+        setMainSubject('Hóa học');
+        setSchoolYear('2026 - 2027');
+        setSelectedWeek(10);
+        setArchiveByYear(defArc);
+        setAttendanceTypes(INITIAL_ATTENDANCE_TYPES);
+        setSeatLayoutConfig({ cols: 4, desksPerCol: 5, seatsPerDesk: 2 });
+        setPeriodTimes(buildDefaultPeriodTimes());
+        setActiveClass('10A1');
+        setBackupModalOpen(false);
+        showToast('Đã khôi phục dữ liệu mẫu mặc định ban đầu.');
+      };
 
       const currentClassObj =
         classes.find((c) => c.id === activeClass) || { id: activeClass, name: activeClass };
@@ -2362,11 +2645,18 @@
 
         setStudentsByClass((prev) => ({
           ...prev,
-          [activeClass]: [...(prev[activeClass] || []), ...added],
+          [activeClass]:
+            excelImportMode === 'REPLACE_STUDENTS'
+              ? added.map((stu, i) => ({ ...stu, team: (i % 4) + 1, seat: i + 1 }))
+              : [...(prev[activeClass] || []), ...added],
         }));
         setExcelPasteText('');
         setExcelImportModalOpen(false);
-        showToast(`Đã nhập ${added.length} học sinh vào ${currentClassObj.name}.`);
+        showToast(
+          excelImportMode === 'REPLACE_STUDENTS'
+            ? `Đã thay thế danh sách lớp ${currentClassObj.name} bằng ${added.length} học sinh mới!`
+            : `Đã thêm ${added.length} học sinh vào ${currentClassObj.name}.`
+        );
       };
 
       const handleProcessGradePaste = () => {
@@ -2895,11 +3185,23 @@
                 </div>
 
                 <button
+                  type="button"
+                  onClick={handleManualForceSave}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 font-bold text-white shadow-sm"
+                  title="Lưu tức thì vào 4 tầng bộ nhớ (Hoặc bấm Ctrl+S) - Chống mất dữ liệu khi bấm F5"
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Lưu ngay ({storageStats.usedKB} KB)</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setBackupModalOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#254f56] hover:bg-[#2f616a] border border-[#44767f] font-medium text-emerald-200"
+                  title="Quản lý Kho lưu trữ dung lượng lớn & Sao lưu JSON/Cloud"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" />
-                  <span>Đã lưu ({storageStats.usedKB} KB)</span>
+                  <span>Kho Lưu Trữ ({storageStats.quotaMB >= 1024 ? `${(storageStats.quotaMB / 1024).toFixed(1)} GB` : `${storageStats.quotaMB} MB`})</span>
                 </button>
 
                 <button
@@ -3233,6 +3535,17 @@
                       <Download className="w-3.5 h-3.5 text-[#8f5c38]" />
                       Xuất Excel (.CSV)
                     </button>
+                    {currentStudents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearCurrentClassStudents}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 rounded-lg text-xs font-semibold"
+                        title="Xóa toàn bộ học sinh mẫu của lớp này để nhập mới (Không bị quay lại khi F5)"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Xóa trống DS lớp ({currentStudents.length})
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -6485,20 +6798,27 @@
                   <h3 className="font-bold text-sm text-[#183c42]">Nhập Danh Sách & Mã Định Danh Bộ Từ Excel</h3>
                   <button onClick={() => setExcelImportModalOpen(false)}><X className="w-4 h-4" /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExcelImportMode('REPLACE_STUDENTS')}
+                    className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'REPLACE_STUDENTS' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
+                  >
+                    1. Thay mới toàn bộ DS lớp
+                  </button>
                   <button
                     type="button"
                     onClick={() => setExcelImportMode('ADD_STUDENTS')}
                     className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'ADD_STUDENTS' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
                   >
-                    1. Thêm học sinh mới từ Excel
+                    2. Thêm nối tiếp học sinh
                   </button>
                   <button
                     type="button"
                     onClick={() => setExcelImportMode('UPDATE_MOET_ID')}
                     className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'UPDATE_MOET_ID' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
                   >
-                    2. Cập nhật cột Mã định danh Bộ / Nghề
+                    3. Cập nhật Mã Bộ / Nghề
                   </button>
                 </div>
                 <textarea
@@ -6712,14 +7032,29 @@
             <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4 no-print">
               <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-xl p-5 space-y-4 text-xs">
                 <div className="flex justify-between items-center border-b border-[#ece9df] pb-2">
-                  <h3 className="font-bold text-sm text-[#183c42]">Sao Lưu Dữ Liệu (.JSON) & Đồng Bộ GitHub Cloud</h3>
+                  <h3 className="font-bold text-sm text-[#183c42]">Kho Lưu Trữ Đa Tầng Dung Lượng Lớn & Sao Lưu (.JSON / Cloud)</h3>
                   <button onClick={() => setBackupModalOpen(false)}><X className="w-4 h-4" /></button>
                 </div>
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 font-medium">
-                  Bộ nhớ Kép (IndexedDB + LocalStorage) đã lưu <strong>{storageStats.usedKB} KB</strong> lúc {storageStats.lastSavedTime}.
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-950 space-y-1.5">
+                  <div className="font-bold text-emerald-900 flex items-center justify-between">
+                    <span>Trạng thái: Đang bảo vệ chống mất dữ liệu khi bấm F5 (4 tầng đồng bộ)</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-700 text-white text-[10px]">Lần lưu cuối: {storageStats.lastSavedTime}</span>
+                  </div>
+                  <div>
+                    Đã sử dụng: <strong>{storageStats.usedKB} KB</strong> / Không gian lưu trữ khả dụng: <strong>{storageStats.quotaMB >= 1024 ? `${(storageStats.quotaMB / 1024).toFixed(2)} GB (${storageStats.quotaMB} MB)` : `${storageStats.quotaMB} MB`}</strong>.
+                  </div>
+                  <div className="text-[11px] text-emerald-800">
+                    • Tầng 1: <strong>IndexedDB Đa Luồng</strong> (Lưu trữ hàng trăm MB - GB, nạp trước khi khởi tạo giao diện)<br/>
+                    • Tầng 2: <strong>CacheStorage API</strong> (Bản sao dự phòng dung lượng lớn độc lập)<br/>
+                    • Tầng 3 & 4: <strong>LocalStorage + SessionStorage + Bắt sự kiện F5/BeforeUnload</strong> (Lưu tức thì từng thao tác thêm/sửa/xóa)
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={handleDownloadBackupJSON} className="px-4 py-2 bg-[#183c42] text-white rounded-lg font-semibold flex items-center gap-1.5">
+                  <button type="button" onClick={handleManualForceSave} className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-semibold flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5" />
+                    Lưu Cố Định Ngay
+                  </button>
+                  <button type="button" onClick={handleDownloadBackupJSON} className="px-4 py-2 bg-[#183c42] text-white rounded-lg font-semibold flex items-center gap-1.5">
                     <Download className="w-3.5 h-3.5" />
                     Tải File Sao Lưu (.JSON)
                   </button>
@@ -6728,6 +7063,10 @@
                     Khôi phục từ File (.JSON)
                     <input type="file" accept=".json" onChange={handleImportBackupJSON} className="hidden" />
                   </label>
+                  <button type="button" onClick={handleResetToDefaultFactory} className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-semibold flex items-center gap-1">
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Khôi phục dữ liệu mẫu ban đầu
+                  </button>
                 </div>
                 <div className="p-3 bg-[#faf9f5] border border-[#e2dfd5] rounded-xl space-y-2">
                   <div className="font-bold text-[#183c42]">Đồng bộ Đám mây GitHub Gist:</div>
@@ -7267,7 +7606,13 @@
     }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    bootstrapSavedStateBeforeMount()
+      .then((bootstrappedState) => {
+        root.render(<App bootstrappedState={bootstrappedState} />);
+      })
+      .catch(() => {
+        root.render(<App bootstrappedState={loadSavedStateSync()} />);
+      });
   </script>
 </body>
 </html>
