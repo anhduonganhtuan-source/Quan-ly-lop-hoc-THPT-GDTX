@@ -99,6 +99,7 @@
     const Wallet = (p) => <IconBase {...p}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></IconBase>;
     const BarChart = (p) => <IconBase {...p}><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></IconBase>;
     const ClipboardList = (p) => <IconBase {...p}><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></IconBase>;
+    const Bell = (p) => <IconBase {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></IconBase>;
 
     // ============================================================================
     // HẰNG SỐ & CẤU HÌNH TUẦN HỌC (CHỦ NHẬT TUẦN TRƯỚC -> THỨ 7 TUẦN NÀY)
@@ -606,24 +607,81 @@
           '10A1': [
             {
               id: 'EV01',
-              title: 'Hội giảng & Chào mừng Ngày Nhà giáo Việt Nam 20/11',
-              targetDate: '2026-11-20',
-              category: 'Hoạt động phong trào',
-              assignee: 'Bí thư & Lớp trưởng',
+              title: 'Mời họp Phụ huynh lớp & đối chiếu chuyên cần Tuần 10',
+              targetDate: '2026-11-15',
+              timeSlot: '08:00',
+              category: 'Họp Phụ huynh',
+              priority: 'HIGH',
+              remindBeforeDays: 7,
+              completed: false,
+              completedAt: '',
+              assignee: 'GVCN & Phụ huynh',
+              note: 'Chuẩn bị phiếu điểm định kỳ, danh sách học nghề và giấy mời phụ huynh.',
             },
             {
               id: 'EV02',
-              title: 'Hoàn thành rà soát Hồ sơ miễn giảm học phí nghề (NĐ 81)',
-              targetDate: '2026-11-25',
-              category: 'Công tác GVCN',
-              assignee: 'GVCN & Phụ huynh',
+              title: 'Hạn thu học phí & nộp bổ sung hồ sơ miễn giảm NĐ 81',
+              targetDate: '2026-11-17',
+              timeSlot: '16:30',
+              category: 'Hạn nộp Học phí & Hồ sơ',
+              priority: 'HIGH',
+              remindBeforeDays: 7,
+              completed: false,
+              completedAt: '',
+              assignee: 'GVCN & Thủ quỹ',
+              note: 'Nhắc phụ huynh các em còn thiếu bản sao Bằng THCS và xác nhận cư trú CT07.',
             },
             {
               id: 'EV03',
+              title: 'Lễ kỷ niệm Ngày Nhà giáo Việt Nam 20/11 & Hội giảng',
+              targetDate: '2026-11-20',
+              timeSlot: '07:30',
+              category: 'Lễ & Phong trào (20/11)',
+              priority: 'HIGH',
+              remindBeforeDays: 7,
+              completed: false,
+              completedAt: '',
+              assignee: 'GVCN & Bí thư lớp',
+              note: 'Hoàn thành báo tường, hoa chúc mừng và điểm danh học sinh dự lễ đầy đủ.',
+            },
+            {
+              id: 'EV04',
+              title: 'Chốt danh sách xét duyệt Miễn giảm học phí nghề (NĐ 81) nộp trường',
+              targetDate: '2026-11-25',
+              timeSlot: '11:00',
+              category: 'Hạn nộp Học phí & Hồ sơ',
+              priority: 'NORMAL',
+              remindBeforeDays: 5,
+              completed: false,
+              completedAt: '',
+              assignee: 'GVCN & Phòng Đào tạo',
+              note: 'Rà soát đủ 4/4 đầu mục giấy tờ của học sinh đăng ký học nghề.',
+            },
+            {
+              id: 'EV05',
+              title: 'Nhập điểm KTĐG Thường xuyên đợt 2 môn Hóa học',
+              targetDate: '2026-11-12',
+              timeSlot: '17:00',
+              category: 'Chuyên môn & Điểm số',
+              priority: 'NORMAL',
+              remindBeforeDays: 5,
+              completed: true,
+              completedAt: '12/11/2026',
+              assignee: 'GVBM Hóa học',
+              note: 'Đã hoàn tất chấm bài và cập nhật vào Sổ điểm điện tử.',
+            },
+            {
+              id: 'EV06',
               title: 'Kiểm tra Định kỳ Cuối Học kỳ I (Năm học 2026 - 2027)',
               targetDate: '2026-12-21',
-              category: 'Lịch thi & Học务',
+              timeSlot: '07:00',
+              category: 'Chuyên môn & Điểm số',
+              priority: 'HIGH',
+              remindBeforeDays: 14,
+              completed: false,
+              completedAt: '',
               assignee: 'Toàn thể học sinh',
+              note: 'Phát đề cương ôn tập Hóa học và nhắc học sinh tránh bị cấm thi chuyên cần.',
             },
           ],
         },
@@ -1729,9 +1787,159 @@
       const [newEventForm, setNewEventForm] = useState({
         title: '',
         targetDate: '2026-11-20',
-        category: 'Công tác GVCN',
-        assignee: 'Cả lớp',
+        timeSlot: '08:00',
+        category: 'Lễ & Phong trào (20/11)',
+        priority: 'HIGH',
+        remindBeforeDays: 7,
+        assignee: 'GVCN & Cả lớp',
+        note: '',
       });
+      const [calendarMonthYear, setCalendarMonthYear] = useState(() => {
+        const now = new Date();
+        return { year: now.getFullYear() || 2026, month: (now.getMonth() + 1) || 11 };
+      });
+      const [selectedCalendarDateISO, setSelectedCalendarDateISO] = useState('');
+      const [eventChecklistFilter, setEventChecklistFilter] = useState('ALL'); // 'ALL' | 'DUE_SOON' | 'PENDING' | 'COMPLETED'
+      const [bellModalOpen, setBellModalOpen] = useState(false);
+      const [dismissedTopBellBanner, setDismissedTopBellBanner] = useState(false);
+
+      // Tính toán khoảng cách ngày và danh sách thông báo Chuông nhắc việc cho GV
+      const enrichedTeacherEvents = useMemo(() => {
+        const todayZero = new Date(liveNow.getFullYear(), liveNow.getMonth(), liveNow.getDate());
+        return (currentClassEvents || [])
+          .map((ev) => {
+            const target = new Date((ev.targetDate || '2026-11-20') + 'T00:00:00');
+            const diffDays = isNaN(target.getTime())
+              ? 0
+              : Math.round((target - todayZero) / (1000 * 60 * 60 * 24));
+            const remindThreshold = Number(ev.remindBeforeDays ?? 7);
+            const isCompleted = Boolean(ev.completed);
+            const isOverdue = !isCompleted && diffDays < 0;
+            const isDueToday = !isCompleted && diffDays === 0;
+            const isDueSoon = !isCompleted && diffDays >= 0 && diffDays <= remindThreshold;
+            const needsBellAlert = !isCompleted && diffDays <= remindThreshold;
+            return {
+              ...ev,
+              timeSlot: ev.timeSlot || '08:00',
+              priority: ev.priority || 'NORMAL',
+              remindBeforeDays: remindThreshold,
+              completed: isCompleted,
+              diffDays,
+              isOverdue,
+              isDueToday,
+              isDueSoon,
+              needsBellAlert,
+            };
+          })
+          .sort((a, b) => {
+            if (a.completed !== b.completed) return a.completed ? 1 : -1;
+            return a.diffDays - b.diffDays;
+          });
+      }, [currentClassEvents, liveNow]);
+
+      const bellAlertEvents = useMemo(() => {
+        return enrichedTeacherEvents.filter((ev) => ev.needsBellAlert);
+      }, [enrichedTeacherEvents]);
+
+      const handleToggleTeacherEventCompleted = (eventId) => {
+        const nowStr = new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        setClassEventsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((ev) => {
+            if (ev.id !== eventId) return ev;
+            const nextDone = !ev.completed;
+            return {
+              ...ev,
+              completed: nextDone,
+              completedAt: nextDone ? nowStr : '',
+            };
+          }),
+        }));
+        showToast('Đã cập nhật trạng thái hoàn thành nhiệm vụ/sự kiện!');
+      };
+
+      const handleAddTeacherEventSubmit = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (!newEventForm.title.trim()) {
+          showToast('Vui lòng nhập tên sự kiện hoặc nhiệm vụ cần thực hiện!');
+          return;
+        }
+        const ev = {
+          id: `EV${Date.now().toString().slice(-5)}`,
+          title: newEventForm.title.trim(),
+          targetDate: newEventForm.targetDate || formatISODate(new Date()),
+          timeSlot: newEventForm.timeSlot || '08:00',
+          category: newEventForm.category || 'Công tác GVCN',
+          priority: newEventForm.priority || 'HIGH',
+          remindBeforeDays: Number(newEventForm.remindBeforeDays) || 7,
+          completed: false,
+          completedAt: '',
+          assignee: (newEventForm.assignee || 'GVCN & Cả lớp').trim(),
+          note: (newEventForm.note || '').trim(),
+        };
+        setClassEventsByClass((prev) => ({
+          ...prev,
+          [activeClass]: [...(prev[activeClass] || []), ev],
+        }));
+        setNewEventForm((p) => ({ ...p, title: '', note: '' }));
+        showToast(`Đã lên lịch sự kiện "${ev.title}" (${formatVNFullDate(ev.targetDate)})!`);
+      };
+
+      const handleDeleteTeacherEvent = (eventId) => {
+        setClassEventsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).filter((x) => x.id !== eventId),
+        }));
+        showToast('Đã xóa sự kiện khỏi lịch công tác.');
+      };
+
+      // Tạo lưới 42 ô (6 tuần x 7 ngày từ Thứ 2 -> Chủ nhật) cho Lịch Calendar Tháng
+      const calendarGridCells = useMemo(() => {
+        const { year, month } = calendarMonthYear;
+        const firstDayOfMonth = new Date(year, month - 1, 1);
+        const daysInMonth = new Date(year, month, 0).getDate();
+        // Quy đổi getDay() (CN=0, T2=1..T7=6) sang chỉ số bắt đầu từ Thứ 2 (T2=0..CN=6)
+        const startOffset = (firstDayOfMonth.getDay() + 6) % 7;
+
+        const cells = [];
+        // Ngày của tháng trước
+        const prevMonthDays = new Date(year, month - 1, 0).getDate();
+        for (let i = startOffset - 1; i >= 0; i--) {
+          const d = prevMonthDays - i;
+          const dt = new Date(year, month - 2, d);
+          const iso = formatISODate(dt);
+          cells.push({
+            iso,
+            dayNum: d,
+            inCurrentMonth: false,
+            events: enrichedTeacherEvents.filter((ev) => ev.targetDate === iso),
+          });
+        }
+        // Ngày trong tháng hiện tại
+        for (let d = 1; d <= daysInMonth; d++) {
+          const dt = new Date(year, month - 1, d);
+          const iso = formatISODate(dt);
+          cells.push({
+            iso,
+            dayNum: d,
+            inCurrentMonth: true,
+            events: enrichedTeacherEvents.filter((ev) => ev.targetDate === iso),
+          });
+        }
+        // Ngày của tháng sau cho đủ bội số của 7
+        const remaining = (7 - (cells.length % 7)) % 7;
+        for (let d = 1; d <= remaining; d++) {
+          const dt = new Date(year, month, d);
+          const iso = formatISODate(dt);
+          cells.push({
+            iso,
+            dayNum: d,
+            inCurrentMonth: false,
+            events: enrichedTeacherEvents.filter((ev) => ev.targetDate === iso),
+          });
+        }
+        return cells;
+      }, [calendarMonthYear, enrichedTeacherEvents]);
       const [newCoachingForm, setNewCoachingForm] = useState({
         studentId: '',
         groupType: 'Phụ đạo củng cố',
@@ -3673,6 +3881,25 @@
 
                 <button
                   type="button"
+                  onClick={() => setBellModalOpen(true)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-bold transition-colors ${
+                    bellAlertEvents.length > 0
+                      ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-300 text-amber-200'
+                      : 'bg-[#122e33] hover:bg-[#224d54] border-[#35636b] text-slate-200'
+                  }`}
+                  title="Chuông thông báo các sự kiện/nhiệm vụ sắp đến hạn hoặc quá hạn chưa tích hoàn thành"
+                >
+                  <Bell className={`w-3.5 h-3.5 ${bellAlertEvents.length > 0 ? 'text-amber-300 animate-bounce' : 'text-slate-300'}`} />
+                  <span>Nhắc việc ({bellAlertEvents.length})</span>
+                  {bellAlertEvents.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[10px] font-bold">
+                      Sắp hạn!
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleManualForceSave}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 font-bold text-white shadow-sm"
                   title="Lưu tức thì vào 4 tầng bộ nhớ (Hoặc bấm Ctrl+S) - Chống mất dữ liệu khi bấm F5"
@@ -3716,6 +3943,7 @@
                 { id: 'TIENICH', label: '08. Biểu Đồ Vi Phạm & Tiện Ích Lớp' },
                 { id: 'TKB', label: `09. Thời Khóa Biểu Tuần ${selectedWeek} (T2 → CN)` },
                 { id: 'RADAR_TIENBO', label: `10. Radar Cấm Thi, Tiến Bộ & Hồ Sơ NĐ81 (${academicRiskRadar.dangerList.length + academicRiskRadar.warningList.length})` },
+                { id: 'LICH_SUKIEN', label: `11. Lịch Sự Kiện & Nhiệm Vụ GV (${ enrichedTeacherEvents.filter((e) => !e.completed).length })` },
               ].map((tab) => {
                 const active = activeTab === tab.id;
                 return (
@@ -3944,6 +4172,71 @@
               </div>
             </div>
           </div>
+
+          {/* CHUÔNG NHẮC VIỆC TỰ ĐỘNG KHI GIÁO VIÊN VÀO WEB (HIỂN THỊ KHI CÒN VÀI NGÀY ĐẾN HẠN) */}
+          {bellAlertEvents.length > 0 && !dismissedTopBellBanner && (
+            <div className="max-w-[1600px] w-full mx-auto px-4 md:px-6 pt-3 no-print">
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5 text-xs shadow-sm">
+                <div className="flex items-start sm:items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#8f5c38] text-white flex items-center justify-center shrink-0">
+                    <Bell className="w-4 h-4 animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-[#183c42] flex flex-wrap items-center gap-1.5">
+                      <span>CHUÔNG NHẮC VIỆC GIÁO VIÊN: Có {bellAlertEvents.length} sự kiện / nhiệm vụ sắp đến hạn (hoặc cần xử lý ngay)!</span>
+                      <span className="text-[11px] font-normal text-slate-600">(Bấm tích chọn ✓ ngay khi Thầy/Cô đã hoàn thành)</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      {bellAlertEvents.slice(0, 4).map((ev) => (
+                        <label
+                          key={ev.id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:border-[#183c42] cursor-pointer transition-colors"
+                          title={`Bấm tích chọn để đánh dấu hoàn thành: ${ev.title}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={ev.completed}
+                            onChange={() => handleToggleTeacherEventCompleted(ev.id)}
+                            className="w-3.5 h-3.5 accent-[#183c42] rounded cursor-pointer"
+                          />
+                          <span className="font-bold text-slate-900">{ev.title}</span>
+                          <span className="text-[10px] text-slate-500">({formatVNShortDate(ev.targetDate)})</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                              ev.diffDays < 0
+                                ? 'bg-red-700 text-white'
+                                : ev.diffDays === 0
+                                ? 'bg-red-600 text-white'
+                                : 'bg-amber-100 text-[#8f5c38]'
+                            }`}
+                          >
+                            {ev.diffDays < 0 ? `Quá hạn ${Math.abs(ev.diffDays)} ngày` : ev.diffDays === 0 ? 'Hôm nay!' : `Còn ${ev.diffDays} ngày`}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('LICH_SUKIEN')}
+                    className="px-3 py-1.5 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-bold"
+                  >
+                    Mở Lịch Calendar & Nhiệm Vụ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDismissedTopBellBanner(true)}
+                    className="px-2 py-1.5 text-slate-500 hover:text-slate-800 font-semibold"
+                    title="Tạm ẩn thanh nhắc việc"
+                  >
+                    Ẩn
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* VÙNG NỘI DUNG CHÍNH */}
           <main className="max-w-[1600px] w-full mx-auto px-4 md:px-6 py-4 flex-1 no-print">
@@ -6181,36 +6474,23 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                     </div>
                   </div>
 
-                  {/* Lịch Sự Kiện, Kỳ Thi & Công Tác Chủ Nhiệm (Đếm ngược ngày thực tế) */}
+                  {/* Lịch Sự Kiện, Kỳ Thi & Công Tác Chủ Nhiệm (Tích chọn hoàn thành & Đếm ngược) */}
                   <div className="lg:col-span-5 bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3">
                     <div className="font-bold text-sm text-[#183c42] border-b border-[#ece9df] pb-2 flex items-center justify-between">
-                      <span>Lịch Công Tác, Kỳ Thi & Sự Kiện Lớp (Đếm ngược)</span>
-                      <span className="text-[11px] text-[#8f5c38]">Hôm nay: {liveDateText}</span>
+                      <span>Nhiệm Vụ & Sự Kiện Giáo Viên (Tích chọn hoàn thành)</span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('LICH_SUKIEN')}
+                        className="px-2.5 py-1 rounded-lg bg-[#183c42] text-amber-200 text-[11px] font-bold hover:bg-[#234f57]"
+                      >
+                        Mở Lịch Calendar Đầy Đủ →
+                      </button>
                     </div>
 
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (!newEventForm.title.trim()) return;
-                        const ev = {
-                          id: `EV${Date.now().toString().slice(-4)}`,
-                          title: newEventForm.title.trim(),
-                          targetDate: newEventForm.targetDate,
-                          category: newEventForm.category,
-                          assignee: newEventForm.assignee.trim() || 'Cả lớp',
-                        };
-                        setClassEventsByClass((prev) => ({
-                          ...prev,
-                          [activeClass]: [...(prev[activeClass] || []), ev],
-                        }));
-                        setNewEventForm((p) => ({ ...p, title: '' }));
-                        showToast('Đã thêm mốc sự kiện/công tác lớp!');
-                      }}
-                      className="grid grid-cols-12 gap-1.5"
-                    >
+                    <form onSubmit={handleAddTeacherEventSubmit} className="grid grid-cols-12 gap-1.5">
                       <input
                         type="text"
-                        placeholder="Tên công việc / kỳ thi / sự kiện..."
+                        placeholder="Tên sự kiện (Lễ 20/11, Hạn học phí, Họp PH...)"
                         value={newEventForm.title}
                         onChange={(e) => setNewEventForm({ ...newEventForm, title: e.target.value })}
                         className="col-span-6 px-2.5 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg"
@@ -6229,56 +6509,66 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                       </button>
                     </form>
 
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {currentClassEvents.map((ev) => {
-                        const target = new Date(ev.targetDate + 'T00:00:00');
-                        const todayZero = new Date(liveNow.getFullYear(), liveNow.getMonth(), liveNow.getDate());
-                        const diffDays = Math.round((target - todayZero) / (1000 * 60 * 60 * 24));
-                        return (
-                          <div
-                            key={ev.id}
-                            className="p-2.5 rounded-lg bg-[#faf9f5] border border-[#e2dfd5] flex items-center justify-between gap-2"
-                          >
+                    <div className="space-y-2 max-h-44 overflow-y-auto">
+                      {enrichedTeacherEvents.map((ev) => (
+                        <div
+                          key={ev.id}
+                          className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 transition-colors ${
+                            ev.completed
+                              ? 'bg-emerald-50/40 border-emerald-200 opacity-80'
+                              : ev.needsBellAlert
+                              ? 'bg-amber-50/60 border-amber-300'
+                              : 'bg-[#faf9f5] border-[#e2dfd5]'
+                          }`}
+                        >
+                          <label className="flex items-start gap-2 cursor-pointer flex-1">
+                            <input
+                              type="checkbox"
+                              checked={ev.completed}
+                              onChange={() => handleToggleTeacherEventCompleted(ev.id)}
+                              className="mt-0.5 w-4 h-4 accent-[#183c42] rounded cursor-pointer"
+                            />
                             <div>
-                              <div className="font-bold text-slate-900">{ev.title}</div>
+                              <div className={`font-bold ${ev.completed ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                                {ev.title}
+                              </div>
                               <div className="text-[11px] text-slate-500">
-                                Ngày: <strong>{formatVNFullDate(ev.targetDate)}</strong> • Phụ trách: {ev.assignee}
+                                Ngày: <strong>{formatVNFullDate(ev.targetDate)}</strong> ({ev.timeSlot}) • {ev.category}
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span
-                                className={`px-2 py-1 rounded-lg font-bold text-[11px] border ${
-                                  diffDays < 0
-                                    ? 'bg-stone-100 text-stone-500 border-stone-200'
-                                    : diffDays === 0
-                                    ? 'bg-red-50 text-red-700 border-red-200'
-                                    : diffDays <= 7
-                                    ? 'bg-amber-50 text-[#8f5c38] border-amber-300'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                }`}
-                              >
-                                {diffDays < 0
-                                  ? `Đã qua ${Math.abs(diffDays)} ngày`
-                                  : diffDays === 0
-                                  ? 'Diễn ra hôm nay!'
-                                  : `Còn ${diffDays} ngày`}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setClassEventsByClass((prev) => ({
-                                    ...prev,
-                                    [activeClass]: (prev[activeClass] || []).filter((x) => x.id !== ev.id),
-                                  }))
-                                }
-                                className="text-slate-400 hover:text-red-600"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                          </label>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                              className={`px-2 py-1 rounded-lg font-bold text-[10px] border ${
+                                ev.completed
+                                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                  : ev.diffDays < 0
+                                  ? 'bg-red-700 text-white border-red-700'
+                                  : ev.diffDays === 0
+                                  ? 'bg-red-600 text-white border-red-600'
+                                  : ev.diffDays <= ev.remindBeforeDays
+                                  ? 'bg-amber-100 text-[#8f5c38] border-amber-300'
+                                  : 'bg-stone-100 text-stone-700 border-stone-200'
+                              }`}
+                            >
+                              {ev.completed
+                                ? '✓ Đã xong'
+                                : ev.diffDays < 0
+                                ? `Quá hạn ${Math.abs(ev.diffDays)} ngày`
+                                : ev.diffDays === 0
+                                ? 'Hôm nay!'
+                                : `Còn ${ev.diffDays} ngày`}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTeacherEvent(ev.id)}
+                              className="text-slate-400 hover:text-red-600"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -7341,7 +7631,576 @@ Trân trọng - GV ${teacherName}.`
                 </div>
               </div>
             )}
+
+            {/* =================================================================
+                11. LỊCH SỰ KIỆN CALENDAR & CHECKLIST NHIỆM VỤ GIÁO VIÊN (CÓ CHUÔNG BÁO SẮP ĐẾN HẠN)
+            ================================================================== */}
+            {activeTab === 'LICH_SUKIEN' && (
+              <div className="space-y-4 text-xs">
+                {/* Thanh tổng quan & tạo nhanh mẫu sự kiện sư phạm */}
+                <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-[#ece9df] pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-[#183c42] text-amber-200 text-[10px] font-bold uppercase">
+                          MỤC 11 • LỊCH & NHIỆM VỤ GV
+                        </span>
+                        <h2 className="text-sm font-bold text-[#183c42]">
+                          Lịch Sự Kiện (Calendar) & Checklist Nhiệm Vụ Cần Thực Hiện Của Giáo Viên
+                        </h2>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Thoải mái lên lịch các mốc công tác (Lễ 20/11, Hạn nộp học phí, Thời gian mời họp PH, Hạn vào điểm...), bấm tích chọn <strong>[✓ Hoàn thành]</strong> và nhận chuông báo tự động khi còn vài ngày đến hạn.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-300 text-[#8f5c38] font-bold flex items-center gap-1.5">
+                        <Bell className="w-3.5 h-3.5" />
+                        Sắp đến hạn / Cần xử lý: {bellAlertEvents.length}
+                      </span>
+                      <span className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">
+                        ✓ Đã hoàn thành: {enrichedTeacherEvents.filter((e) => e.completed).length}/{enrichedTeacherEvents.length}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Dãy nút tạo nhanh sự kiện mẫu 1 chạm */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-bold text-[#183c42] mr-1">Chèn nhanh mẫu sự kiện:</span>
+                    {[
+                      {
+                        label: '+ Lễ Nhà giáo VN 20/11',
+                        title: 'Lễ kỷ niệm Ngày Nhà giáo Việt Nam 20/11 & Hội giảng',
+                        targetDate: '2026-11-20',
+                        timeSlot: '07:30',
+                        category: 'Lễ & Phong trào (20/11)',
+                        remindBeforeDays: 7,
+                        note: 'Chuẩn bị văn nghệ, hoa chúc mừng và kiểm diện học sinh tham dự lễ.',
+                      },
+                      {
+                        label: '+ Hạn nộp Học phí & NĐ81',
+                        title: 'Hạn chót thu học phí & bổ sung hồ sơ miễn giảm NĐ 81',
+                        targetDate: '2026-11-18',
+                        timeSlot: '16:30',
+                        category: 'Hạn nộp Học phí & Hồ sơ',
+                        remindBeforeDays: 5,
+                        note: 'Nhắc phụ huynh các em còn nợ bản sao Bằng THCS và mẫu CT07.',
+                      },
+                      {
+                        label: '+ Mời họp Phụ huynh lớp',
+                        title: 'Họp Phụ huynh định kỳ & thông báo kết quả rèn luyện - học tập',
+                        targetDate: '2026-11-15',
+                        timeSlot: '08:00',
+                        category: 'Họp Phụ huynh',
+                        remindBeforeDays: 5,
+                        note: 'In sẵn Giấy mời PH, Phiếu điểm và danh sách Đôi bạn cùng tiến.',
+                      },
+                      {
+                        label: '+ Hạn vào điểm KTĐG',
+                        title: 'Hạn hoàn thành nhập điểm KTĐG Thường xuyên & Giữa kỳ',
+                        targetDate: '2026-11-28',
+                        timeSlot: '17:00',
+                        category: 'Chuyên môn & Điểm số',
+                        remindBeforeDays: 5,
+                        note: 'Rà soát đủ các cột TX1, TX2, TX3, GK trước khi khóa sổ.',
+                      },
+                      {
+                        label: '+ Sinh hoạt chuyên đề / Dự giờ',
+                        title: 'Sinh hoạt Tổ chuyên môn & thao giảng dự giờ Hóa học',
+                        targetDate: '2026-11-19',
+                        timeSlot: '14:00',
+                        category: 'Chuyên môn & Điểm số',
+                        remindBeforeDays: 3,
+                        note: 'Chuẩn bị kế hoạch bài dạy (KHBD) và dụng cụ thí nghiệm Hóa học.',
+                      },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setNewEventForm({
+                            title: preset.title,
+                            targetDate: preset.targetDate,
+                            timeSlot: preset.timeSlot,
+                            category: preset.category,
+                            priority: 'HIGH',
+                            remindBeforeDays: preset.remindBeforeDays,
+                            assignee: 'GVCN & Cả lớp',
+                            note: preset.note,
+                          });
+                          showToast(`Đã điền mẫu "${preset.label}" vào khung tạo sự kiện bên dưới!`);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#f6f5ef] hover:bg-[#e5e2d6] border border-[#dcd8cb] text-[#183c42] font-semibold transition-colors"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Form tự lên lịch sự kiện chi tiết */}
+                  <form onSubmit={handleAddTeacherEventSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-2.5 bg-[#faf9f5] p-3.5 rounded-xl border border-[#e2dfd5] items-end">
+                    <div className="md:col-span-4">
+                      <label className="block font-bold text-[#183c42] mb-1">Tên sự kiện / Nhiệm vụ cần thực hiện *</label>
+                      <input
+                        type="text"
+                        value={newEventForm.title}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, title: e.target.value }))}
+                        placeholder="VD: Lễ 20/11, Hạn nộp học phí, Họp PH lớp 10A1..."
+                        className="w-full px-3 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-slate-900"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block font-bold text-[#183c42] mb-1">Ngày diễn ra / Hạn chót</label>
+                      <input
+                        type="date"
+                        value={newEventForm.targetDate}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, targetDate: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-bold text-[#183c42]"
+                      />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block font-semibold text-slate-700 mb-1">Giờ</label>
+                      <input
+                        type="text"
+                        value={newEventForm.timeSlot}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, timeSlot: e.target.value }))}
+                        placeholder="08:00"
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-center"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block font-semibold text-slate-700 mb-1">Nhóm công việc</label>
+                      <select
+                        value={newEventForm.category}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, category: e.target.value }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"
+                      >
+                        <option value="Lễ & Phong trào (20/11)">Lễ & Phong trào (20/11)</option>
+                        <option value="Hạn nộp Học phí & Hồ sơ">Hạn nộp Học phí & Hồ sơ</option>
+                        <option value="Họp Phụ huynh">Họp Phụ huynh</option>
+                        <option value="Chuyên môn & Điểm số">Chuyên môn & Điểm số</option>
+                        <option value="Công tác GVCN">Công tác GVCN</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block font-semibold text-[#8f5c38] mb-1">Báo chuông trước mấy ngày?</label>
+                      <select
+                        value={newEventForm.remindBeforeDays}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, remindBeforeDays: Number(e.target.value) }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-bold text-[#8f5c38]"
+                      >
+                        <option value={1}>Báo trước 1 ngày</option>
+                        <option value={3}>Báo trước 3 ngày</option>
+                        <option value={5}>Báo trước 5 ngày</option>
+                        <option value={7}>Báo trước 7 ngày (1 tuần)</option>
+                        <option value={14}>Báo trước 14 ngày (2 tuần)</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-1">
+                      <button
+                        type="submit"
+                        className="w-full py-1.5 px-3 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-bold shadow-sm"
+                      >
+                        + Lên lịch
+                      </button>
+                    </div>
+                    <div className="md:col-span-12">
+                      <input
+                        type="text"
+                        value={newEventForm.note}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, note: e.target.value }))}
+                        placeholder="Ghi chú nội dung cần chuẩn bị (VD: In 35 giấy mời phụ huynh, kiểm tra danh sách nợ học phí đợt 2...)"
+                        className="w-full px-3 py-1.5 bg-white border border-[#dcd8cb] rounded-lg text-slate-700"
+                      />
+                    </div>
+                  </form>
+                </div>
+
+                {/* Bố cục 2 cột: Lịch Calendar Tháng trực quan (7 cột) + Danh sách Checklist tích chọn (5 cột) */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+                  {/* CỘT TRÁI (7 CỘT): LỊCH CALENDAR THÁNG TRỰC QUAN */}
+                  <div className="xl:col-span-7 bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-[#183c42]" />
+                        <h3 className="text-sm font-bold text-[#183c42]">
+                          Lịch Calendar Tháng {String(calendarMonthYear.month).padStart(2, '0')} / {calendarMonthYear.year}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonthYear((p) =>
+                              p.month === 1 ? { year: p.year - 1, month: 12 } : { year: p.year, month: p.month - 1 }
+                            )
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-[#f6f5ef] hover:bg-[#e5e2d6] border border-[#dcd8cb] font-bold"
+                        >
+                          ◀ Tháng trước
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date();
+                            setCalendarMonthYear({ year: now.getFullYear(), month: now.getMonth() + 1 });
+                            setSelectedCalendarDateISO('');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#183c42] text-white font-semibold"
+                        >
+                          Tháng này ({liveDateText})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonthYear((p) =>
+                              p.month === 12 ? { year: p.year + 1, month: 1 } : { year: p.year, month: p.month + 1 }
+                            )
+                          }
+                          className="px-2.5 py-1 rounded-lg bg-[#f6f5ef] hover:bg-[#e5e2d6] border border-[#dcd8cb] font-bold"
+                        >
+                          Tháng sau ▶
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-500 flex flex-wrap items-center justify-between gap-2">
+                      <span>💡 Bấm vào <strong>"+ Thêm"</strong> ở bất kỳ ô ngày nào để lên lịch cho ngày đó, hoặc tích chọn <strong>[✓]</strong> trực tiếp trên ô lịch.</span>
+                      {selectedCalendarDateISO && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCalendarDateISO('')}
+                          className="text-[#8f5c38] font-bold underline"
+                        >
+                          Đang lọc ngày {formatVNFullDate(selectedCalendarDateISO)} (Bấm để xem tất cả)
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Lưới Lịch 7 cột (Thứ 2 -> Chủ nhật) */}
+                    <div className="grid grid-cols-7 gap-1 text-center font-bold text-[#183c42] bg-[#efeee6] p-1.5 rounded-t-xl border border-[#e2dfd5]">
+                      {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map((dName) => (
+                        <div key={dName} className="py-1 text-[11px]">{dName}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1.5">
+                      {calendarGridCells.map((cell) => {
+                        const todayISO = formatISODate(liveNow);
+                        const isToday = cell.iso === todayISO;
+                        const isSelected = cell.iso === selectedCalendarDateISO;
+                        return (
+                          <div
+                            key={cell.iso}
+                            onClick={() => {
+                              setSelectedCalendarDateISO((prev) => (prev === cell.iso ? '' : cell.iso));
+                              setNewEventForm((p) => ({ ...p, targetDate: cell.iso }));
+                            }}
+                            className={`min-h-[92px] p-1.5 rounded-xl border flex flex-col justify-between cursor-pointer transition-all ${
+                              !cell.inCurrentMonth
+                                ? 'bg-stone-50/60 border-stone-200/70 opacity-55'
+                                : isSelected
+                                ? 'bg-amber-50/70 border-[#8f5c38] ring-1 ring-[#8f5c38]'
+                                : isToday
+                                ? 'bg-emerald-50/50 border-[#183c42] ring-1 ring-[#183c42]'
+                                : 'bg-[#faf9f5] border-[#e2dfd5] hover:border-[#526d5d]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                  isToday
+                                    ? 'bg-[#183c42] text-amber-200'
+                                    : cell.events.length > 0
+                                    ? 'bg-[#efeee6] text-[#183c42]'
+                                    : 'text-slate-700'
+                                }`}
+                              >
+                                {cell.dayNum}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setNewEventForm((p) => ({ ...p, targetDate: cell.iso }));
+                                  showToast(`Đã chọn ngày ${formatVNFullDate(cell.iso)} để thêm sự kiện mới!`);
+                                }}
+                                className="text-[9px] px-1 py-0.2 rounded bg-white border border-[#dcd8cb] text-slate-500 hover:text-[#183c42] font-semibold"
+                                title={`Thêm sự kiện vào ngày ${formatVNFullDate(cell.iso)}`}
+                              >
+                                + Thêm
+                              </button>
+                            </div>
+
+                            <div className="space-y-1 mt-1">
+                              {cell.events.map((ev) => (
+                                <div
+                                  key={ev.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleTeacherEventCompleted(ev.id);
+                                  }}
+                                  title={`${ev.title} (${ev.completed ? 'Đã hoàn thành - Bấm để bỏ tích' : 'Chưa hoàn thành - Bấm để đánh dấu hoàn thành'})`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold truncate flex items-center gap-1 border ${
+                                    ev.completed
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 line-through opacity-80'
+                                      : ev.diffDays < 0
+                                      ? 'bg-red-700 text-white border-red-700'
+                                      : ev.needsBellAlert
+                                      ? 'bg-amber-100 text-[#8f5c38] border-amber-300'
+                                      : 'bg-[#183c42] text-white border-[#183c42]'
+                                  }`}
+                                >
+                                  <span>{ev.completed ? '✓' : '○'}</span>
+                                  <span className="truncate">{ev.title}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* CỘT PHẢI (5 CỘT): DANH SÁCH CHECKLIST TÍCH CHỌN HOÀN THÀNH & CHUÔNG HẸN GIỜ */}
+                  <div className="xl:col-span-5 bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                        <div>
+                          <h3 className="text-sm font-bold text-[#183c42]">
+                            Checklist Công Việc & Sự Kiện Của Giáo Viên
+                          </h3>
+                          <p className="text-[11px] text-slate-500">
+                            Đánh dấu tích <strong>[✓]</strong> sau khi hoàn thành để tắt chuông nhắc hạn.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Bộ lọc trạng thái Checklist */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { id: 'ALL', label: `Tất cả (${enrichedTeacherEvents.length})` },
+                          { id: 'DUE_SOON', label: `🔔 Sắp hạn / Quá hạn (${bellAlertEvents.length})` },
+                          { id: 'PENDING', label: `⏳ Chưa xong (${enrichedTeacherEvents.filter((e) => !e.completed).length})` },
+                          { id: 'COMPLETED', label: `✓ Đã hoàn thành (${enrichedTeacherEvents.filter((e) => e.completed).length})` },
+                        ].map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setEventChecklistFilter(tab.id)}
+                            className={`px-2.5 py-1 rounded-lg font-semibold border transition-colors ${
+                              eventChecklistFilter === tab.id
+                                ? 'bg-[#183c42] text-white border-[#183c42]'
+                                : 'bg-[#f6f5ef] text-slate-700 border-[#dcd8cb] hover:bg-[#ebe8dc]'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Danh sách các mục tích chọn */}
+                      <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+                        {(() => {
+                          let filteredList = enrichedTeacherEvents;
+                          if (selectedCalendarDateISO) {
+                            filteredList = filteredList.filter((e) => e.targetDate === selectedCalendarDateISO);
+                          } else if (eventChecklistFilter === 'DUE_SOON') {
+                            filteredList = bellAlertEvents;
+                          } else if (eventChecklistFilter === 'PENDING') {
+                            filteredList = filteredList.filter((e) => !e.completed);
+                          } else if (eventChecklistFilter === 'COMPLETED') {
+                            filteredList = filteredList.filter((e) => e.completed);
+                          }
+
+                          if (filteredList.length === 0) {
+                            return (
+                              <div className="p-5 rounded-xl bg-[#faf9f5] border border-dashed border-[#dcd8cb] text-center text-slate-500">
+                                Không có sự kiện/nhiệm vụ nào trong bộ lọc hiện tại.
+                              </div>
+                            );
+                          }
+
+                          return filteredList.map((ev) => (
+                            <div
+                              key={ev.id}
+                              className={`p-3 rounded-xl border transition-all ${
+                                ev.completed
+                                  ? 'bg-emerald-50/40 border-emerald-200'
+                                  : ev.diffDays < 0
+                                  ? 'bg-red-50/60 border-red-300'
+                                  : ev.needsBellAlert
+                                  ? 'bg-amber-50/70 border-amber-300 shadow-sm'
+                                  : 'bg-[#faf9f5] border-[#e2dfd5]'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2.5">
+                                <label className="flex items-start gap-2.5 cursor-pointer flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={ev.completed}
+                                    onChange={() => handleToggleTeacherEventCompleted(ev.id)}
+                                    className="mt-0.5 w-4 h-4 accent-[#183c42] rounded cursor-pointer shrink-0"
+                                  />
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className={`font-bold text-xs ${ev.completed ? 'line-through text-slate-500' : 'text-slate-900'}`}>
+                                        {ev.title}
+                                      </span>
+                                      <span className="px-2 py-0.2 rounded bg-white border border-[#dcd8cb] text-[10px] font-semibold text-[#183c42]">
+                                        {ev.category}
+                                      </span>
+                                    </div>
+                                    <div className="text-[11px] text-slate-600">
+                                      📅 Hạn: <strong>{formatVNFullDate(ev.targetDate)}</strong> lúc <strong>{ev.timeSlot}</strong> • Báo trước: {ev.remindBeforeDays} ngày
+                                    </div>
+                                    {ev.note && (
+                                      <div className="text-[11px] text-slate-500 bg-white/80 px-2 py-1 rounded border border-[#ece9df]">
+                                        Ghi chú: {ev.note}
+                                      </div>
+                                    )}
+                                    {ev.completed && ev.completedAt && (
+                                      <div className="text-[10px] font-semibold text-emerald-700">
+                                        ✓ Đã đánh dấu hoàn thành ({ev.completedAt})
+                                      </div>
+                                    )}
+                                  </div>
+                                </label>
+
+                                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-lg font-bold text-[10px] border ${
+                                      ev.completed
+                                        ? 'bg-emerald-600 text-white border-emerald-600'
+                                        : ev.diffDays < 0
+                                        ? 'bg-red-700 text-white border-red-700'
+                                        : ev.diffDays === 0
+                                        ? 'bg-red-600 text-white border-red-600'
+                                        : ev.needsBellAlert
+                                        ? 'bg-[#8f5c38] text-white border-[#8f5c38]'
+                                        : 'bg-white text-slate-700 border-[#dcd8cb]'
+                                    }`}
+                                  >
+                                    {ev.completed
+                                      ? '✓ Hoàn thành'
+                                      : ev.diffDays < 0
+                                      ? `Quá hạn ${Math.abs(ev.diffDays)} ngày`
+                                      : ev.diffDays === 0
+                                      ? '⏰ Hôm nay!'
+                                      : `🔔 Còn ${ev.diffDays} ngày`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTeacherEvent(ev.id)}
+                                    className="text-slate-400 hover:text-red-600 p-1"
+                                    title="Xóa sự kiện này"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </main>
+
+          {/* MODAL CHUÔNG THÔNG BÁO NHẮC VIỆC SẮP ĐẾN HẠN CHO GIÁO VIÊN */}
+          {bellModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 no-print">
+              <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-2xl p-5 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-[#ece9df] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#8f5c38] text-white flex items-center justify-center">
+                      <Bell className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#183c42]">
+                        Chuông Thông Báo Sự Kiện & Nhiệm Vụ Sắp Đến Hạn ({bellAlertEvents.length} mục cần lưu ý)
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        Tự động nhắc trước khi đến hạn (Lễ 20/11, Hạn thu học phí, Họp PH, Điểm số...). Tích chọn <strong>[✓]</strong> khi đã hoàn thành.
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={() => setBellModalOpen(false)}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {bellAlertEvents.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-semibold">
+                    Tuyệt vời! Hiện tại không có nhiệm vụ nào quá hạn hoặc sắp đến hạn trong vài ngày tới.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {bellAlertEvents.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex items-start justify-between gap-3"
+                      >
+                        <label className="flex items-start gap-2.5 cursor-pointer flex-1">
+                          <input
+                            type="checkbox"
+                            checked={ev.completed}
+                            onChange={() => handleToggleTeacherEventCompleted(ev.id)}
+                            className="mt-0.5 w-4 h-4 accent-[#183c42] rounded cursor-pointer"
+                          />
+                          <div>
+                            <div className="font-bold text-slate-900">{ev.title}</div>
+                            <div className="text-[11px] text-slate-600 mt-0.5">
+                              Ngày diễn ra: <strong>{formatVNFullDate(ev.targetDate)}</strong> ({ev.timeSlot}) • Nhóm: <strong>{ev.category}</strong>
+                            </div>
+                            {ev.note && <div className="text-[11px] text-slate-500 mt-0.5">Ghi chú: {ev.note}</div>}
+                          </div>
+                        </label>
+                        <span
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[10px] shrink-0 ${
+                            ev.diffDays < 0
+                              ? 'bg-red-700 text-white'
+                              : ev.diffDays === 0
+                              ? 'bg-red-600 text-white'
+                              : 'bg-[#8f5c38] text-white'
+                          }`}
+                        >
+                          {ev.diffDays < 0
+                            ? `Quá hạn ${Math.abs(ev.diffDays)} ngày`
+                            : ev.diffDays === 0
+                            ? 'Diễn ra hôm nay!'
+                            : `Còn ${ev.diffDays} ngày`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center pt-2 border-t border-[#ece9df]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBellModalOpen(false);
+                      setActiveTab('LICH_SUKIEN');
+                    }}
+                    className="px-4 py-1.5 bg-[#183c42] text-white rounded-lg font-bold"
+                  >
+                    Mở Lịch Calendar & Thêm Sự Kiện Mới
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBellModalOpen(false)}
+                    className="px-4 py-1.5 border border-[#dcd8cb] rounded-lg font-semibold"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* MODAL TẢI TKB THEO TUẦN LÊN TỪ FILE EXCEL / CSV */}
           {tkbImportModalOpen && (
