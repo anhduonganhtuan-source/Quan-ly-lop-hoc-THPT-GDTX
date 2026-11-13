@@ -1275,7 +1275,9 @@
       const [newSubjectName, setNewSubjectName] = useState('');
       const [studentModal, setStudentModal] = useState(null);
       const [excelImportModalOpen, setExcelImportModalOpen] = useState(false);
-      const [excelImportMode, setExcelImportMode] = useState('ADD_STUDENTS');
+      const [excelImportMode, setExcelImportMode] = useState('REPLACE_STUDENTS');
+      const [excelColumnLayout, setExcelColumnLayout] = useState('WITH_ID'); // 'WITH_ID' (Cột 1 là Mã ĐD tự nhập) | 'NAME_FIRST' (Cột 1 là Họ tên, Mã ĐD tự nhập sau)
+      const [excelSkipSttCol, setExcelSkipSttCol] = useState(true); // Tự động bỏ qua cột STT (1, 2, 3...) nếu copy từ Excel
       const [excelPasteText, setExcelPasteText] = useState('');
       const [gradePasteModalOpen, setGradePasteModalOpen] = useState(false);
       const [gradePasteText, setGradePasteText] = useState('');
@@ -3065,7 +3067,7 @@
             : studentModal.vocational !== 'Không học nghề';
         const stuData = {
           id: generatedInternalId,
-          moetId: (studentModal.moetId || generatedInternalId).trim(),
+          moetId: (studentModal.moetId ?? '').trim(),
           name: studentModal.name.trim(),
           dob: studentModal.dob.trim() || '01/01/2011',
           gender: studentModal.gender || 'Nam',
@@ -3279,22 +3281,135 @@
         showToast(`Đã đặt toàn bộ học sinh Tuần ${selectedWeek} về trạng thái Có mặt đủ (100đ).`);
       };
 
+      // Phân tích dữ liệu dán từ Excel theo đúng cấu trúc cột Giáo viên chọn (Tuyệt đối KHÔNG tự sinh Mã định danh ảo)
+      const parsedExcelPreviewRows = useMemo(() => {
+        const rawLines = excelPasteText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        if (rawLines.length === 0) return [];
+
+        // Tự động nhận biết và bỏ qua dòng tiêu đề nếu dòng đầu chứa chữ "Họ và tên", "Mã định danh", "Ngày sinh", "STT"
+        const firstLineLower = rawLines[0].toLowerCase();
+        const isHeaderRow =
+          firstLineLower.includes('họ và tên') ||
+          firstLineLower.includes('họ tên') ||
+          firstLineLower.includes('mã định danh') ||
+          firstLineLower.includes('ngày sinh');
+        const dataLines = isHeaderRow ? rawLines.slice(1) : rawLines;
+
+        return dataLines.map((line, idx) => {
+          const rawCols = line.includes('\t') ? line.split('\t') : line.split(',');
+          let clean = rawCols.map((c) => c.replace(/^"|"$/g, '').replace(/^'/, '').trim());
+
+          // Nếu bật "Tự động bỏ qua cột STT (1, 2, 3...)" và cột đầu chỉ là số thứ tự 1-3 chữ số (VD: 1, 2, 3... 50)
+          if (excelSkipSttCol && clean.length >= 2 && /^\d{1,3}$/.test(clean[0])) {
+            clean = clean.slice(1);
+          }
+
+          if (excelImportMode === 'UPDATE_MOET_ID') {
+            return {
+              rowIndex: idx + 1,
+              moetId: clean[0] ?? '',
+              name: currentStudents[idx]?.name || `(Học sinh dòng ${idx + 1})`,
+              dob: currentStudents[idx]?.dob || '',
+              gender: currentStudents[idx]?.gender || 'Nam',
+              status: clean[1] || currentStudents[idx]?.status || 'Đang học',
+              vocational: clean[2] || currentStudents[idx]?.vocational || 'Tin học ứng dụng',
+              studentPhone: currentStudents[idx]?.studentPhone || '',
+              parentPhone: currentStudents[idx]?.parentPhone || '',
+              role: currentStudents[idx]?.role || 'Thành viên',
+            };
+          }
+
+          if (excelColumnLayout === 'NAME_FIRST') {
+            // Cột 1: Họ và tên | Cột 2: Ngày sinh | Cột 3: Giới tính | Cột 4: Học nghề | Cột 5: SĐT HS | Cột 6: SĐT PH | Cột 7: Mã định danh (Nếu có)
+            const vocVal = clean[3] || 'Tin học ứng dụng';
+            return {
+              rowIndex: idx + 1,
+              moetId: clean[6] || '', // Không tự tạo mã nếu để trống
+              name: clean[0] || '',
+              dob: clean[1] || '',
+              gender: clean[2] || 'Nam',
+              status: 'Đang học',
+              vocational: vocVal,
+              hasVocational: vocVal !== 'Không học nghề',
+              studentPhone: clean[4] || '',
+              parentPhone: clean[5] || '',
+              role: 'Thành viên',
+            };
+          }
+
+          // Mặc định WITH_ID:
+          // Cột 1: Mã định danh (Tự nhập) | Cột 2: Họ và tên | Cột 3: Ngày sinh | Cột 4: Giới tính | Cột 5: Học nghề | Cột 6: SĐT HS | Cột 7: SĐT PH | Cột 8: Tình trạng | Cột 9: Chức vụ
+          const vocVal = clean[4] || 'Tin học ứng dụng';
+          return {
+            rowIndex: idx + 1,
+            moetId: clean[0] || '', // Giữ đúng mã GV nhập, nếu trống thì để trống cho GV tự điền
+            name: clean[1] || clean[0] || '',
+            dob: clean[2] || '',
+            gender: clean[3] || 'Nam',
+            vocational: vocVal,
+            hasVocational: vocVal !== 'Không học nghề',
+            studentPhone: clean[5] || '',
+            parentPhone: clean[6] || '',
+            status: clean[7] || 'Đang học',
+            role: clean[8] || 'Thành viên',
+          };
+        }).filter((r) => r.name || r.moetId);
+      }, [excelPasteText, excelImportMode, excelColumnLayout, excelSkipSttCol, currentStudents]);
+
+      const handleDownloadExcelTemplateCSV = () => {
+        const headers = [
+          'STT',
+          'Mã định danh (Tự nhập)',
+          'Họ và tên học sinh',
+          'Ngày sinh (DD/MM/YYYY)',
+          'Giới tính (Nam/Nữ)',
+          'Đăng ký Học nghề (Hoặc ghi Không học nghề)',
+          'SĐT Học sinh',
+          'SĐT Phụ huynh',
+          'Tình trạng',
+          'Chức vụ',
+        ];
+        const sampleRows = [
+          ['1', `'072209001234`, '"Nguyễn Hoàng Phương Thảo"', '22/04/2011', 'Nữ', '"Tin học ứng dụng"', `'0912345678`, `'0987654321`, '"Đang học"', '"Lớp trưởng"'],
+          ['2', `'072209001235`, '"Trần Minh Khôi"', '15/08/2011', 'Nam', '"Điện công nghiệp"', `'0912345679`, `'0987654322`, '"Đang học"', '"Thành viên"'],
+          ['3', `''`, '"Lê Ngọc Bảo Trân"', '03/11/2011', 'Nữ', '"Không học nghề"', `'0912345680`, `'0987654323`, '"Đang học"', '"Thành viên"'],
+        ];
+        const csvContent = '\uFEFF' + [headers.join(','), ...sampleRows.map((r) => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `File_Mau_Nhap_Hoc_Sinh_Chuan_${activeClass}.csv`;
+        a.click();
+        showToast('Đã tải File Mẫu Excel (.CSV) có sẵn tiêu đề cột!');
+      };
+
+      const handleUploadExcelStudentCSVFile = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          setExcelPasteText(evt.target.result || '');
+          showToast('Đã nạp dữ liệu từ file! Vui lòng kiểm tra Bảng Xem Trước bên dưới trước khi bấm Xác nhận.');
+        };
+        reader.readAsText(file);
+      };
+
       const handleProcessExcelPaste = () => {
-        const lines = excelPasteText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        if (lines.length === 0) return;
+        if (parsedExcelPreviewRows.length === 0) {
+          showToast('Chưa có dữ liệu hợp lệ. Vui lòng dán dữ liệu từ Excel hoặc chọn file .CSV!');
+          return;
+        }
 
         if (excelImportMode === 'UPDATE_MOET_ID') {
           setStudentsByClass((prev) => {
             const list = [...(prev[activeClass] || [])];
-            lines.forEach((line, idx) => {
-              const cols = line.includes('\t') ? line.split('\t') : line.split(',');
-              const clean = cols.map((c) => c.trim());
+            parsedExcelPreviewRows.forEach((row, idx) => {
               if (list[idx]) {
                 list[idx] = {
                   ...list[idx],
-                  moetId: clean[0] || list[idx].moetId || list[idx].id,
-                  status: clean[1] || list[idx].status || 'Đang học',
-                  vocational: clean[2] || list[idx].vocational || 'Chưa phân nghề',
+                  moetId: row.moetId !== '' ? row.moetId : (list[idx].moetId || ''),
+                  status: row.status || list[idx].status || 'Đang học',
+                  vocational: row.vocational || list[idx].vocational || 'Chưa phân nghề',
                 };
               }
             });
@@ -3302,41 +3417,32 @@
           });
           setExcelPasteText('');
           setExcelImportModalOpen(false);
-          showToast('Đã cập nhật Mã định danh Bộ / Tình trạng / Học nghề từ Excel!');
+          showToast('Đã cập nhật Mã định danh / Tình trạng / Học nghề theo đúng dữ liệu Thầy/Cô nhập!');
           return;
         }
 
-        const added = lines.map((line, idx) => {
-          const cols = line.includes('\t') ? line.split('\t') : line.split(',');
-          const clean = cols.map((c) => c.trim());
-          const hasMoetFirst =
-            clean.length >= 2 && /^[0-9A-Za-z_-]{4,}$/.test(clean[0]) && !clean[0].includes(' ');
-          const moetId = hasMoetFirst
-            ? clean[0]
-            : `072211${String(currentStudents.length + idx + 1).padStart(6, '0')}`;
-          const offset = hasMoetFirst ? 1 : 0;
-
-          return {
-            id: `HS${Date.now().toString().slice(-4)}${idx}`,
-            moetId,
-            name: clean[0 + offset] || `Học sinh ${currentStudents.length + idx + 1}`,
-            dob: clean[1 + offset] || '01/01/2011',
-            gender: clean[2 + offset] || 'Nam',
-            status: clean[3 + offset] || 'Đang học',
-            vocational: clean[4 + offset] || 'Chưa phân nghề',
-            tuitionExemption: 'Miễn 100% học phí nghề (NĐ 81)',
-            tuitionDocStatus: 'Chưa nộp',
-            role: clean[5 + offset] || 'Thành viên',
-            attitude: clean[6 + offset] || 'Tích cực',
-            team: ((currentStudents.length + idx) % 4) + 1,
-            seat: currentStudents.length + idx + 1,
-            deskSlot: '',
-            studentPhone: clean[7 + offset] || '',
-            parentPhone: clean[8 + offset] || '',
-            specialNote: '',
-            gvcnComment: '',
-          };
-        });
+        const baseCount = excelImportMode === 'REPLACE_STUDENTS' ? 0 : currentStudents.length;
+        const added = parsedExcelPreviewRows.map((row, idx) => ({
+          id: `HS_${Date.now()}_${idx}`,
+          moetId: (row.moetId || '').trim(), // Giữ nguyên mã GV tự nhập (hoặc để trống nếu chưa nhập, tuyệt đối không tự sinh)
+          name: (row.name || '').trim() || `Học sinh ${baseCount + idx + 1}`,
+          dob: (row.dob || '').trim(),
+          gender: row.gender || 'Nam',
+          status: row.status || 'Đang học',
+          hasVocational: row.hasVocational,
+          vocational: row.vocational || 'Tin học ứng dụng',
+          tuitionExemption: row.hasVocational ? 'Miễn 100% học phí nghề (NĐ 81)' : 'Không thuộc diện',
+          tuitionDocStatus: row.hasVocational ? 'Chưa nộp' : 'Chỉ học Văn hóa',
+          role: row.role || 'Thành viên',
+          attitude: 'Tích cực',
+          team: ((baseCount + idx) % 4) + 1,
+          seat: baseCount + idx + 1,
+          deskSlot: '',
+          studentPhone: (row.studentPhone || '').trim(),
+          parentPhone: (row.parentPhone || '').trim(),
+          specialNote: '',
+          gvcnComment: '',
+        }));
 
         setStudentsByClass((prev) => ({
           ...prev,
@@ -3349,8 +3455,8 @@
         setExcelImportModalOpen(false);
         showToast(
           excelImportMode === 'REPLACE_STUDENTS'
-            ? `Đã thay thế danh sách lớp ${currentClassObj.name} bằng ${added.length} học sinh mới!`
-            : `Đã thêm ${added.length} học sinh vào ${currentClassObj.name}.`
+            ? `Đã thay mới danh sách lớp ${currentClassObj.name} gồm ${added.length} học sinh!`
+            : `Đã thêm ${added.length} học sinh vào ${currentClassObj.name}!`
         );
       };
 
@@ -3531,7 +3637,7 @@
           });
           const gpa = getStudentOverallGPA(stu.id, 'SEMESTER') ?? '';
           return [
-            `'${stu.moetId || stu.id}`, `"${stu.name}"`, stu.dob, stu.gender,
+            `'${stu.moetId || 'Chưa nhập'}`, `"${stu.name}"`, stu.dob, stu.gender,
             `"${stu.status || 'Đang học'}"`, `"${stu.vocational || 'Chưa phân nghề'}"`,
             `"${stu.tuitionExemption || ''}"`, `"${stu.tuitionDocStatus || ''}"`,
             `"${stu.role}"`, `"${stu.attitude}"`, stu.team,
@@ -4273,8 +4379,8 @@
                       onClick={() =>
                         setStudentModal({
                           mode: 'ADD',
-                          id: `HS${String(currentStudents.length + 1).padStart(3, '0')}`,
-                          moetId: `072211${String(currentStudents.length + 1).padStart(6, '0')}`,
+                          id: `HS_${Date.now()}`,
+                          moetId: '',
                           name: '',
                           dob: '01/01/2011',
                           gender: 'Nam',
@@ -4511,48 +4617,61 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-[#efeee6] border-b border-[#e2dfd5] text-[#183c42] font-bold">
-                        <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] w-32">Mã định danh Bộ</th>
-                        <th className="py-2.5 px-3 border-r border-[#e2dfd5] min-w-[155px]">Họ và tên</th>
-                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-24">Ngày sinh</th>
-                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-20">Giới tính</th>
+                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-10 text-center">STT</th>
+                        <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[145px]">Mã định danh (Tự nhập)</th>
+                        <th className="py-2.5 px-3 border-r border-[#e2dfd5] min-w-[240px]">Họ và tên Học sinh (Đầy đủ)</th>
+                        <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[125px] text-center">Ngày sinh (DD/MM/YYYY)</th>
+                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-20 text-center">Giới tính</th>
                         <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-28">Tình trạng</th>
                         <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[175px]">Đăng ký Học nghề / Văn hóa</th>
                         <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[180px]">Miễn giảm HP nghề & Hồ sơ</th>
                         <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-32">Chức vụ / Tổ</th>
                         <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-28">Thái độ</th>
-                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-28">SĐT Học sinh</th>
-                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] w-28">SĐT Phụ huynh</th>
+                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] min-w-[115px]">SĐT Học sinh</th>
+                        <th className="py-2.5 px-2 border-r border-[#e2dfd5] min-w-[115px]">SĐT Phụ huynh</th>
                         <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[170px]">Thẻ lưu ý đặc biệt</th>
                         <th className="py-2.5 px-2.5 text-center w-44">Tác vụ & Phiếu PDF</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ece9df]">
-                      {filteredStudents.map((stu) => {
+                      {filteredStudents.map((stu, stuIdx) => {
                         const takingVoc = isStudentTakingVocational(stu);
                         return (
                           <tr key={stu.id} className="hover:bg-[#faf9f5]">
-                            <td className="py-1.5 px-2 border-r border-[#ece9df]">
+                            <td className="py-2 px-2 border-r border-[#ece9df] text-center font-bold text-[#183c42] tabular-nums">
+                              {stuIdx + 1}
+                            </td>
+                            <td className="py-2 px-2 border-r border-[#ece9df]">
                               <input
                                 type="text"
-                                value={stu.moetId ?? stu.id}
+                                value={stu.moetId || ''}
+                                placeholder="Tự nhập mã ĐD..."
                                 onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'moetId', e.target.value)}
-                                className="w-full px-1.5 py-1 font-semibold text-[#183c42] bg-[#f6f5ef] border border-[#dcd8cb] rounded tabular-nums"
+                                className="w-full min-w-[130px] px-2 py-1 font-semibold text-[#183c42] bg-[#f6f5ef] border border-[#dcd8cb] focus:bg-white focus:border-[#183c42] rounded tabular-nums"
                               />
                             </td>
-                            <td className="py-1.5 px-2 border-r border-[#ece9df]">
+                            <td className="py-2 px-2.5 border-r border-[#ece9df] min-w-[240px]">
                               <input
                                 type="text"
                                 value={stu.name}
+                                placeholder="Nhập đầy đủ họ và tên..."
                                 onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'name', e.target.value)}
-                                className="w-full px-1.5 py-1 font-bold text-slate-900 bg-transparent hover:bg-[#f6f5ef] focus:bg-white border border-transparent focus:border-[#183c42] rounded"
+                                className="w-full min-w-[220px] px-2 py-1 text-[13px] font-bold text-[#183c42] bg-[#faf9f5] hover:bg-[#f6f5ef] focus:bg-white border border-[#e2dfd5] focus:border-[#183c42] rounded"
                               />
+                              <div className="mt-1 px-1 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                                <span className="font-bold text-slate-900 whitespace-nowrap">{stu.name || 'Chưa nhập họ tên'}</span>
+                                <span className="px-1.5 py-0.2 rounded bg-[#efeee6] text-[#8f5c38] font-bold tabular-nums whitespace-nowrap">
+                                  NS: {stu.dob || '--/--/----'}
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-1.5 px-2 border-r border-[#ece9df]">
+                            <td className="py-2 px-2 border-r border-[#ece9df] min-w-[125px]">
                               <input
                                 type="text"
-                                value={stu.dob}
+                                value={stu.dob || ''}
+                                placeholder="DD/MM/YYYY"
                                 onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'dob', e.target.value)}
-                                className="w-full px-1 py-1 text-slate-700 bg-transparent hover:bg-[#f6f5ef] rounded"
+                                className="w-full min-w-[110px] px-2 py-1 text-center font-bold text-[#183c42] bg-[#f6f5ef] border border-[#dcd8cb] focus:bg-white focus:border-[#183c42] rounded tabular-nums"
                               />
                             </td>
                             <td className="py-1.5 px-2 border-r border-[#ece9df]">
@@ -4953,7 +5072,7 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                         return (
                           <tr key={stu.id} className="hover:bg-[#faf9f5]">
                             <td className="py-2 px-2.5 border-r border-[#ece9df] font-semibold text-[#183c42] tabular-nums">
-                              {stu.moetId || stu.id}
+                              {stu.moetId || 'Chưa nhập'}
                             </td>
                             <td className="py-2 px-3 border-r border-[#ece9df]">
                               <div className="font-bold text-slate-900">{stu.name}</div>
@@ -5233,7 +5352,7 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                         return (
                           <tr key={stu.id} className="hover:bg-[#faf9f5]">
                             <td className="py-2 px-2.5 border-r border-[#ece9df] font-semibold text-[#183c42] tabular-nums">
-                              {stu.moetId || stu.id}
+                              {stu.moetId || 'Chưa nhập'}
                             </td>
                             <td className="py-2 px-3 border-r border-[#ece9df]">
                               <div className="font-bold text-slate-900">{stu.name}</div>
@@ -5459,7 +5578,7 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                       {filteredStudents.map((stu) => (
                         <tr key={stu.id} className="hover:bg-[#faf9f5]">
                           <td className="py-2 px-2.5 border-r border-[#ece9df] font-semibold text-slate-700 tabular-nums">
-                            {stu.moetId || stu.id}
+                            {stu.moetId || 'Chưa nhập'}
                           </td>
                           <td className="py-2 px-3 border-r border-[#ece9df] font-bold text-slate-900">
                             {stu.name}
@@ -5975,7 +6094,7 @@ Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
                         return (
                           <tr key={stu.id} className="hover:bg-[#faf9f5]">
                             <td className="py-2 px-2.5 border-r border-[#ece9df] font-semibold text-slate-700 tabular-nums">
-                              {stu.moetId || stu.id}
+                              {stu.moetId || 'Chưa nhập'}
                             </td>
                             <td className="py-2 px-3 border-r border-[#ece9df]">
                               <div className="font-bold text-slate-900">{stu.name}</div>
@@ -8696,12 +8815,13 @@ Trân trọng - GV ${teacherName}.`
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold mb-1">Mã định danh Bộ GD</label>
+                    <label className="block font-bold mb-1">Mã định danh (GV tự nhập)</label>
                     <input
                       type="text"
-                      value={studentModal.moetId ?? studentModal.id}
+                      placeholder="Nhập mã định danh của học sinh..."
+                      value={studentModal.moetId || ''}
                       onChange={(e) => setStudentModal({ ...studentModal, moetId: e.target.value })}
-                      className="w-full px-2.5 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-semibold"
+                      className="w-full px-2.5 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-semibold text-[#183c42]"
                     />
                   </div>
                   <div>
@@ -8835,8 +8955,8 @@ Trân trọng - GV ${teacherName}.`
                     const newId = `HS${Date.now().toString().slice(-4)}`;
                     const newStu = {
                       id: newId,
-                      moetId: `072211${String(currentStudents.length + 1).padStart(6, '0')}`,
-                      name, dob: '01/01/2011', gender: 'Nam', status: 'Đang học',
+                      moetId: '',
+                      name, dob: '', gender: 'Nam', status: 'Đang học',
                       vocational: 'Chưa phân nghề', tuitionExemption: 'Miễn 100% học phí nghề (NĐ 81)',
                       tuitionDocStatus: 'Chưa nộp', role: 'Thành viên', attitude: 'Tích cực',
                       team: quickAssignModal.col, seat: currentStudents.length + 1,
@@ -8906,44 +9026,270 @@ Trân trọng - GV ${teacherName}.`
 
           {excelImportModalOpen && (
             <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4 no-print">
-              <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-xl p-5 space-y-3 text-xs">
-                <div className="flex justify-between items-center border-b border-[#ece9df] pb-2">
-                  <h3 className="font-bold text-sm text-[#183c42]">Nhập Danh Sách & Mã Định Danh Bộ Từ Excel</h3>
+              <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-4xl p-5 space-y-3.5 text-xs max-h-[92vh] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-[#ece9df] pb-2.5">
+                  <div>
+                    <h3 className="font-bold text-sm text-[#183c42]">
+                      Nhập Danh Sách Học Sinh & Mã Định Danh Từ Excel (Có Hướng Dẫn Thứ Tự Cột & Xem Trước)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Mã định danh do Thầy/Cô tự nhập hoàn toàn (hệ thống không tự tạo mã ảo). Nếu chưa có mã định danh có thể để trống để điền sau.
+                    </p>
+                  </div>
                   <button onClick={() => setExcelImportModalOpen(false)}><X className="w-4 h-4" /></button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+
+                {/* Bước 1: Chọn chế độ nhập */}
+                <div className="space-y-1.5">
+                  <div className="font-bold text-[#183c42]">Bước 1: Chọn hình thức nhập vào lớp {currentClassObj.name}:</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExcelImportMode('REPLACE_STUDENTS')}
+                      className={`p-2.5 rounded-lg border font-bold text-left ${
+                        excelImportMode === 'REPLACE_STUDENTS'
+                          ? 'bg-[#183c42] text-white border-[#183c42]'
+                          : 'bg-[#f6f5ef] text-slate-700 border-[#dcd8cb]'
+                      }`}
+                    >
+                      1. Thay mới toàn bộ DS lớp (Xóa DS mẫu cũ)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcelImportMode('ADD_STUDENTS')}
+                      className={`p-2.5 rounded-lg border font-bold text-left ${
+                        excelImportMode === 'ADD_STUDENTS'
+                          ? 'bg-[#183c42] text-white border-[#183c42]'
+                          : 'bg-[#f6f5ef] text-slate-700 border-[#dcd8cb]'
+                      }`}
+                    >
+                      2. Thêm nối tiếp vào DS hiện tại
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcelImportMode('UPDATE_MOET_ID')}
+                      className={`p-2.5 rounded-lg border font-bold text-left ${
+                        excelImportMode === 'UPDATE_MOET_ID'
+                          ? 'bg-[#183c42] text-white border-[#183c42]'
+                          : 'bg-[#f6f5ef] text-slate-700 border-[#dcd8cb]'
+                      }`}
+                    >
+                      3. Chỉ cập nhật cột Mã định danh / Nghề
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bước 2: Chọn bố cục cột trong file Excel & Hướng dẫn thứ tự cột chi tiết */}
+                {excelImportMode !== 'UPDATE_MOET_ID' ? (
+                  <div className="p-3.5 rounded-xl bg-[#faf9f5] border border-[#e2dfd5] space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-bold text-[#183c42]">
+                        Bước 2: Chọn thứ tự cột đúng với bảng Excel Thầy/Cô đang copy:
+                      </span>
+                      <label className="inline-flex items-center gap-1.5 font-semibold text-[#526d5d] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={excelSkipSttCol}
+                          onChange={(e) => setExcelSkipSttCol(e.target.checked)}
+                          className="accent-[#183c42] w-3.5 h-3.5"
+                        />
+                        <span>Tự động bỏ qua cột STT (1, 2, 3...) nếu lỡ bôi đen cả cột STT</span>
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExcelColumnLayout('WITH_ID')}
+                        className={`p-2 rounded-lg border text-left font-semibold ${
+                          excelColumnLayout === 'WITH_ID'
+                            ? 'bg-[#526d5d] text-white border-[#526d5d]'
+                            : 'bg-white text-slate-700 border-[#dcd8cb]'
+                        }`}
+                      >
+                        Cách A (Chuẩn): Cột 1 là Mã định danh → Cột 2 là Họ và tên → Cột 3 là Ngày sinh...
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExcelColumnLayout('NAME_FIRST')}
+                        className={`p-2 rounded-lg border text-left font-semibold ${
+                          excelColumnLayout === 'NAME_FIRST'
+                            ? 'bg-[#8f5c38] text-white border-[#8f5c38]'
+                            : 'bg-white text-slate-700 border-[#dcd8cb]'
+                        }`}
+                      >
+                        Cách B (Nhanh): Cột 1 là Họ và tên → Cột 2 là Ngày sinh (Mã định danh tự nhập sau)
+                      </button>
+                    </div>
+
+                    {/* BẢNG GHI CHÚ THỨ TỰ CỘT TRỰC QUAN */}
+                    <div className="overflow-x-auto border border-[#dcd8cb] rounded-lg bg-white">
+                      {excelColumnLayout === 'WITH_ID' ? (
+                        <table className="w-full text-left border-collapse text-[11px]">
+                          <thead>
+                            <tr className="bg-[#efeee6] text-[#183c42] font-bold border-b border-[#dcd8cb]">
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 1: Mã định danh</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb] bg-amber-50 text-[#8f5c38]">Cột 2: Họ và tên HS *</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb] bg-amber-50 text-[#8f5c38]">Cột 3: Ngày sinh *</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 4: Giới tính</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 5: Học nghề</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 6: SĐT HS</th>
+                              <th className="py-1.5 px-2">Cột 7: SĐT Phụ huynh</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="text-slate-600">
+                              <td className="py-1.5 px-2 border-r border-[#ece9df] font-mono">072209001234 (Hoặc trống)</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df] font-bold text-slate-900">Nguyễn Hoàng Phương Thảo</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df] font-bold text-[#183c42]">22/04/2011</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">Nữ</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">Tin học ứng dụng</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">0912345678</td>
+                              <td className="py-1.5 px-2">0987654321</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      ) : (
+                        <table className="w-full text-left border-collapse text-[11px]">
+                          <thead>
+                            <tr className="bg-[#efeee6] text-[#183c42] font-bold border-b border-[#dcd8cb]">
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb] bg-amber-50 text-[#8f5c38]">Cột 1: Họ và tên HS *</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb] bg-amber-50 text-[#8f5c38]">Cột 2: Ngày sinh *</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 3: Giới tính</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 4: Học nghề</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 5: SĐT HS</th>
+                              <th className="py-1.5 px-2 border-r border-[#dcd8cb]">Cột 6: SĐT Phụ huynh</th>
+                              <th className="py-1.5 px-2">Cột 7: Mã định danh (Tùy chọn)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="text-slate-600">
+                              <td className="py-1.5 px-2 border-r border-[#ece9df] font-bold text-slate-900">Nguyễn Hoàng Phương Thảo</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df] font-bold text-[#183c42]">22/04/2011</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">Nữ</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">Tin học ứng dụng</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">0912345678</td>
+                              <td className="py-1.5 px-2 border-r border-[#ece9df]">0987654321</td>
+                              <td className="py-1.5 px-2 font-mono">(Để trống tự nhập sau)</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-[#faf9f5] border border-[#e2dfd5] space-y-1.5">
+                    <div className="font-bold text-[#183c42]">Thứ tự cột khi cập nhật Mã định danh / Tình trạng / Nghề:</div>
+                    <div className="text-slate-700">
+                      <strong>Cột 1:</strong> Mã định danh (Tự nhập) &nbsp;|&nbsp; <strong>Cột 2:</strong> Tình trạng (Đang học / Bảo lưu...) &nbsp;|&nbsp; <strong>Cột 3:</strong> Tên nghề học
+                    </div>
+                  </div>
+                )}
+
+                {/* Thanh công cụ Tải file mẫu CSV / Chọn file CSV / Dán thử mẫu */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadExcelTemplateCSV}
+                      className="px-3 py-1.5 rounded-lg bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] border border-[#d6d2c4] font-bold flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#8f5c38]" />
+                      Tải File Excel Mẫu (.CSV)
+                    </button>
+                    <label className="px-3 py-1.5 rounded-lg bg-[#526d5d] hover:bg-[#425a4c] text-white font-bold flex items-center gap-1.5 cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      Chọn File Excel (.CSV) Từ Máy
+                      <input type="file" accept=".csv,.txt" onChange={handleUploadExcelStudentCSVFile} className="hidden" />
+                    </label>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setExcelImportMode('REPLACE_STUDENTS')}
-                    className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'REPLACE_STUDENTS' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
+                    onClick={() => {
+                      if (excelColumnLayout === 'NAME_FIRST') {
+                        setExcelPasteText(
+                          'Nguyễn Hoàng Phương Thảo\t22/04/2011\tNữ\tTin học ứng dụng\t0912345678\t0987654321\nTrần Minh Khôi\t15/08/2011\tNam\tĐiện công nghiệp\t0912345679\t0987654322'
+                        );
+                      } else {
+                        setExcelPasteText(
+                          '072209001234\tNguyễn Hoàng Phương Thảo\t22/04/2011\tNữ\tTin học ứng dụng\t0912345678\t0987654321\n072209001235\tTrần Minh Khôi\t15/08/2011\tNam\tĐiện công nghiệp\t0912345679\t0987654322'
+                        );
+                      }
+                    }}
+                    className="text-[#8f5c38] font-bold underline"
                   >
-                    1. Thay mới toàn bộ DS lớp
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExcelImportMode('ADD_STUDENTS')}
-                    className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'ADD_STUDENTS' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
-                  >
-                    2. Thêm nối tiếp học sinh
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExcelImportMode('UPDATE_MOET_ID')}
-                    className={`p-2 rounded-lg border font-semibold ${excelImportMode === 'UPDATE_MOET_ID' ? 'bg-[#183c42] text-white' : 'bg-[#f6f5ef]'}`}
-                  >
-                    3. Cập nhật Mã Bộ / Nghề
+                    + Điền thử 2 dòng mẫu để xem cấu trúc
                   </button>
                 </div>
-                <textarea
-                  rows={6}
-                  value={excelPasteText}
-                  onChange={(e) => setExcelPasteText(e.target.value)}
-                  placeholder="Dán dữ liệu copy từ Excel vào đây..."
-                  className="w-full p-2.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg"
-                />
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setExcelImportModalOpen(false)} className="px-3 py-1.5 border rounded-lg">Đóng</button>
-                  <button onClick={handleProcessExcelPaste} className="px-4 py-1.5 bg-[#183c42] text-white rounded-lg font-semibold">Xác nhận nhập</button>
+
+                {/* Ô dán dữ liệu */}
+                <div>
+                  <label className="block font-bold text-[#183c42] mb-1">
+                    Bước 3: Copy các dòng học sinh từ Excel và dán (Ctrl+V) vào ô dưới đây:
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={excelPasteText}
+                    onChange={(e) => setExcelPasteText(e.target.value)}
+                    placeholder={
+                      excelColumnLayout === 'NAME_FIRST'
+                        ? 'Ví dụ (Cách nhau bằng phím Tab khi copy từ Excel hoặc dấu phẩy):\nNguyễn Hoàng Phương Thảo\t22/04/2011\tNữ\tTin học ứng dụng\t0912345678\t0987654321'
+                        : 'Ví dụ (Cách nhau bằng phím Tab khi copy từ Excel hoặc dấu phẩy):\n072209001234\tNguyễn Hoàng Phương Thảo\t22/04/2011\tNữ\tTin học ứng dụng\t0912345678\t0987654321'
+                    }
+                    className="w-full p-2.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-mono text-xs"
+                  />
+                </div>
+
+                {/* BẢNG XEM TRƯỚC DỮ LIỆU TRƯỚC KHI LƯU */}
+                {parsedExcelPreviewRows.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="font-bold text-emerald-800 flex items-center justify-between">
+                      <span>✓ Bảng Xem Trước ({parsedExcelPreviewRows.length} học sinh đã nhận diện đúng cột):</span>
+                      <span className="text-[11px] text-slate-500">Kiểm tra cột Họ tên & Ngày sinh trước khi bấm Xác nhận</span>
+                    </div>
+                    <div className="border border-emerald-300 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
+                      <table className="w-full text-left border-collapse text-[11px]">
+                        <thead>
+                          <tr className="bg-emerald-50 text-[#183c42] font-bold border-b border-emerald-200">
+                            <th className="py-1.5 px-2 border-r border-emerald-200 w-10 text-center">STT</th>
+                            <th className="py-1.5 px-2 border-r border-emerald-200">Mã định danh (Tự nhập)</th>
+                            <th className="py-1.5 px-2.5 border-r border-emerald-200 min-w-[180px]">Họ và tên Học sinh</th>
+                            <th className="py-1.5 px-2 border-r border-emerald-200">Ngày sinh</th>
+                            <th className="py-1.5 px-2 border-r border-emerald-200">Giới tính</th>
+                            <th className="py-1.5 px-2 border-r border-emerald-200">Học nghề</th>
+                            <th className="py-1.5 px-2 border-r border-emerald-200">SĐT HS</th>
+                            <th className="py-1.5 px-2">SĐT Phụ huynh</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#ece9df]">
+                          {parsedExcelPreviewRows.map((r) => (
+                            <tr key={r.rowIndex} className="bg-white">
+                              <td className="py-1 px-2 border-r border-[#ece9df] text-center font-bold">{r.rowIndex}</td>
+                              <td className="py-1 px-2 border-r border-[#ece9df] font-mono text-[#183c42]">
+                                {r.moetId || <span className="text-slate-400 italic">(Để trống tự nhập sau)</span>}
+                              </td>
+                              <td className="py-1 px-2.5 border-r border-[#ece9df] font-bold text-slate-900">{r.name}</td>
+                              <td className="py-1 px-2 border-r border-[#ece9df] font-bold text-[#8f5c38]">{r.dob || '--'}</td>
+                              <td className="py-1 px-2 border-r border-[#ece9df]">{r.gender}</td>
+                              <td className="py-1 px-2 border-r border-[#ece9df]">{r.vocational}</td>
+                              <td className="py-1 px-2 border-r border-[#ece9df]">{r.studentPhone}</td>
+                              <td className="py-1 px-2">{r.parentPhone}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-[#ece9df]">
+                  <button onClick={() => setExcelImportModalOpen(false)} className="px-4 py-1.5 border rounded-lg font-semibold">Đóng</button>
+                  <button
+                    onClick={handleProcessExcelPaste}
+                    className="px-5 py-1.5 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-bold"
+                  >
+                    Xác nhận nhập ({parsedExcelPreviewRows.length} HS)
+                  </button>
                 </div>
               </div>
             </div>
@@ -8951,17 +9297,29 @@ Trân trọng - GV ${teacherName}.`
 
           {gradePasteModalOpen && (
             <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4 no-print">
-              <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-xl p-5 space-y-3 text-xs">
+              <div className="bg-white border border-[#e2dfd5] rounded-xl w-full max-w-2xl p-5 space-y-3 text-xs">
                 <div className="flex justify-between items-center border-b border-[#ece9df] pb-2">
-                  <h3 className="font-bold text-sm text-[#183c42]">Dán Điểm Hàng Loạt Từ Excel - Môn {selectedSubject}</h3>
+                  <h3 className="font-bold text-sm text-[#183c42]">Dán Điểm Hàng Loạt Từ Excel - Môn {selectedSubject} ({semester})</h3>
                   <button onClick={() => setGradePasteModalOpen(false)}><X className="w-4 h-4" /></button>
+                </div>
+                <div className="p-2.5 rounded-lg bg-[#faf9f5] border border-[#e2dfd5] space-y-1">
+                  <div className="font-bold text-[#183c42]">Thứ tự 7 cột điểm khi copy từ Excel (theo đúng thứ tự danh sách học sinh của lớp):</div>
+                  <div className="grid grid-cols-7 gap-1 text-center font-bold text-[11px] bg-[#efeee6] p-1.5 rounded border border-[#dcd8cb] text-[#183c42]">
+                    <span>Cột 1: TX1</span>
+                    <span>Cột 2: TX2</span>
+                    <span>Cột 3: TX3</span>
+                    <span>Cột 4: TX4</span>
+                    <span>Cột 5: Giữa kỳ</span>
+                    <span>Cột 6: Cuối kỳ</span>
+                    <span>Cột 7: Nhận xét</span>
+                  </div>
                 </div>
                 <textarea
                   rows={6}
                   value={gradePasteText}
                   onChange={(e) => setGradePasteText(e.target.value)}
-                  placeholder="Copy các cột TX1 | TX2 | TX3 | TX4 | GK | CK | Nhận xét từ Excel dán vào đây..."
-                  className="w-full p-2.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg"
+                  placeholder="Copy các cột điểm TX1 | TX2 | TX3 | TX4 | GK | CK | Nhận xét từ Excel dán vào đây..."
+                  className="w-full p-2.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-mono"
                 />
                 <div className="flex justify-end gap-2">
                   <button onClick={() => setGradePasteModalOpen(false)} className="px-3 py-1.5 border rounded-lg">Hủy</button>
@@ -9377,7 +9735,7 @@ Trân trọng - GV ${teacherName}.`
 
                     <div className="grid grid-cols-3 gap-1.5 border border-[#183c42] bg-[#f6f5ef] rounded-lg p-2.5 mb-3">
                       <div>Họ và tên: <strong className="text-[#183c42]">{stu.name}</strong></div>
-                      <div>Mã ĐD Bộ: <strong>{stu.moetId || stu.id}</strong></div>
+                      <div>Mã ĐD Bộ: <strong>{stu.moetId || 'Chưa nhập'}</strong></div>
                       <div>Tổ / Chức vụ: <strong>Tổ {stu.team} - {stu.role}</strong></div>
                       <div>ĐK Học nghề: <strong className="text-[#8f5c38]">{isStudentTakingVocational(stu) ? stu.vocational : 'Chỉ học Văn hóa'}</strong></div>
                       <div>SĐT Học sinh: <strong>{stu.studentPhone || '--'}</strong></div>
@@ -9475,7 +9833,7 @@ Trân trọng - GV ${teacherName}.`
 
                     <div className="grid grid-cols-3 gap-1.5 border border-[#183c42] bg-[#f6f5ef] rounded-lg p-2.5 mb-3">
                       <div>Họ và tên: <strong className="text-[#183c42]">{stu.name}</strong></div>
-                      <div>Mã ĐD Bộ: <strong>{stu.moetId || stu.id}</strong></div>
+                      <div>Mã ĐD Bộ: <strong>{stu.moetId || 'Chưa nhập'}</strong></div>
                       <div>ĐK Học nghề: <strong className="text-[#8f5c38]">{isStudentTakingVocational(stu) ? stu.vocational : 'Chỉ học Văn hóa'}</strong></div>
                       <div>SĐT Học sinh: <strong>{stu.studentPhone || '--'}</strong></div>
                       <div>SĐT Phụ huynh: <strong>{stu.parentPhone || '--'}</strong></div>
@@ -9612,7 +9970,7 @@ Trân trọng - GV ${teacherName}.`
                   </div>
                   <div className="space-y-2 leading-relaxed border border-[#183c42] bg-[#f6f5ef] p-4 rounded-xl">
                     <div>Kính gửi: Ban Giám hiệu <strong>{schoolName}</strong> và Giáo viên Chủ nhiệm lớp <strong>{currentClassObj.name}</strong>.</div>
-                    <div>Em tên là: <strong className="text-[#183c42]">{stu.name}</strong> • Mã ĐD Bộ: <strong>{stu.moetId || stu.id}</strong> • Tổ: <strong>{stu.team}</strong> • SĐT HS: <strong>{stu.studentPhone || '--'}</strong>.</div>
+                    <div>Em tên là: <strong className="text-[#183c42]">{stu.name}</strong> • Mã ĐD Bộ: <strong>{stu.moetId || 'Chưa nhập'}</strong> • Tổ: <strong>{stu.team}</strong> • SĐT HS: <strong>{stu.studentPhone || '--'}</strong>.</div>
                     <p>Trong Tuần {selectedWeek} ({semester} - Năm học {schoolYear}), em đã để xảy ra các thiếu sót về chuyên cần và nội quy lớp học.</p>
                     <p>Em xin nghiêm túc nhận khuyết điểm và cam kết với Thầy/Cô cùng Gia đình sẽ đi học đúng giờ, chuẩn bị bài đầy đủ và chấp hành nghiêm chỉnh nội quy nhà trường.</p>
                   </div>
