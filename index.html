@@ -133,6 +133,14 @@
       'Đang bổ sung hồ sơ',
     ];
 
+    // 4 Mốc giấy tờ chuẩn trong Lộ trình hoàn thiện Hồ sơ Miễn giảm Học phí Nghề (NĐ 81/2021/NĐ-CP)
+    const DECREE81_DOC_STEPS = [
+      { key: 'don_mg', shortLabel: 'Đơn NĐ81', fullLabel: '01. Đơn đề nghị miễn giảm học phí (Mẫu Phụ lục NĐ 81)' },
+      { key: 'bang_thcs', shortLabel: 'Bằng THCS', fullLabel: '02. Bản sao Bằng tốt nghiệp THCS / Giấy CNTN tạm thời' },
+      { key: 'khai_sinh', shortLabel: 'Khai sinh', fullLabel: '03. Bản sao Giấy khai sinh hợp lệ' },
+      { key: 'cu_tru', shortLabel: 'CCCD/CT07', fullLabel: '04. Bản sao CCCD / Xác nhận thông tin cư trú (Mẫu CT07)' },
+    ];
+
     // Mỗi tuần Chuyên cần / Vi phạm bắt đầu từ Chủ nhật tuần trước đến Thứ 7 tuần này
     const DAYS_OF_WEEK = [
       { key: 'CN', label: 'Chủ nhật', shortLabel: 'CN (Tuần trước)', offset: 0 },
@@ -1505,6 +1513,99 @@
       const setCoachingListByClass = (val) => updateYearField('coachingListByClass', val);
       const setWeeklyMeetingNoteByClass = (val) => updateYearField('weeklyMeetingNoteByClass', val);
       const setTimetablesByClass = (val) => updateYearField('timetablesByClass', val);
+      const setPeerPairsByClass = (val) => updateYearField('peerPairsByClass', val);
+
+      // State cho 4 tính năng nâng cao: Lộ trình NĐ81, Radar Cấm thi, Tiến bộ cá nhân & Đôi bạn cùng tiến
+      const [showDecree81RoadmapInHoso, setShowDecree81RoadmapInHoso] = useState(true);
+      const [decree81FilterMode, setDecree81FilterMode] = useState('ALL_VOC'); // 'ALL_VOC' | 'MISSING_ONLY' | 'COMPLETED_ONLY'
+      const [radarFilterMode, setRadarFilterMode] = useState('AT_RISK_ALL'); // 'AT_RISK_ALL' | 'DANGER_ONLY' | 'ALL_STUDENTS'
+      const [progressSubjectFilter, setProgressSubjectFilter] = useState('MAIN_SUBJECT');
+      const [customPairForm, setCustomPairForm] = useState({
+        mentorId: '',
+        menteeId: '',
+        subjectFocus: mainSubject,
+        targetCol: 1,
+        targetDesk: 1,
+        note: 'Kèm giải bài tập & nhắc nhở chuyên cần đầu giờ',
+      });
+
+      // 1. LỘ TRÌNH HOÀN THIỆN HỒ SƠ MIỄN GIẢM HỌC PHÍ NGHỀ (NĐ 81)
+      const getStudentTuitionChecklist = useCallback((stu) => {
+        if (stu.tuitionChecklist && typeof stu.tuitionChecklist === 'object') {
+          return {
+            don_mg: Boolean(stu.tuitionChecklist.don_mg),
+            bang_thcs: Boolean(stu.tuitionChecklist.bang_thcs),
+            khai_sinh: Boolean(stu.tuitionChecklist.khai_sinh),
+            cu_tru: Boolean(stu.tuitionChecklist.cu_tru),
+          };
+        }
+        const statusLower = (stu.tuitionDocStatus || '').toLowerCase();
+        if (statusLower.includes('đủ')) {
+          return { don_mg: true, bang_thcs: true, khai_sinh: true, cu_tru: true };
+        }
+        if (statusLower.includes('khai sinh')) {
+          return { don_mg: true, bang_thcs: true, khai_sinh: false, cu_tru: true };
+        }
+        if (statusLower.includes('bằng thcs')) {
+          return { don_mg: true, bang_thcs: false, khai_sinh: true, cu_tru: true };
+        }
+        if (statusLower.includes('xác nhận cư trú') || statusLower.includes('ct07')) {
+          return { don_mg: true, bang_thcs: true, khai_sinh: true, cu_tru: false };
+        }
+        return { don_mg: true, bang_thcs: false, khai_sinh: true, cu_tru: false };
+      }, []);
+
+      const getStudentDecree81Summary = useCallback((stu) => {
+        const checklist = getStudentTuitionChecklist(stu);
+        const completedSteps = DECREE81_DOC_STEPS.filter((s) => checklist[s.key]);
+        const missingSteps = DECREE81_DOC_STEPS.filter((s) => !checklist[s.key]);
+        const pct = Math.round((completedSteps.length / DECREE81_DOC_STEPS.length) * 100);
+        return {
+          checklist,
+          completedCount: completedSteps.length,
+          totalCount: DECREE81_DOC_STEPS.length,
+          missingSteps,
+          pct,
+          isComplete: missingSteps.length === 0,
+        };
+      }, [getStudentTuitionChecklist]);
+
+      const handleToggleTuitionChecklistStep = (stuId, stepKey) => {
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) => {
+            if (s.id !== stuId) return s;
+            const currentCheck = getStudentTuitionChecklist(s);
+            const nextCheck = { ...currentCheck, [stepKey]: !currentCheck[stepKey] };
+            const missing = DECREE81_DOC_STEPS.filter((st) => !nextCheck[st.key]);
+            const nextStatusText =
+              missing.length === 0
+                ? 'Đã nộp đủ hồ sơ (4/4)'
+                : `Thiếu: ${missing.map((m) => m.shortLabel).join(', ')} (${4 - missing.length}/4)`;
+            return {
+              ...s,
+              tuitionChecklist: nextCheck,
+              tuitionDocStatus: nextStatusText,
+            };
+          }),
+        }));
+      };
+
+      const handleMarkAllDecree81Complete = (stuId) => {
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) =>
+            s.id === stuId
+              ? {
+                  ...s,
+                  tuitionChecklist: { don_mg: true, bang_thcs: true, khai_sinh: true, cu_tru: true },
+                  tuitionDocStatus: 'Đã nộp đủ hồ sơ (4/4)',
+                }
+              : s
+          ),
+        }));
+        showToast('Đã xác nhận hoàn thành 100% (4/4) hồ sơ miễn giảm học phí NĐ 81!');
+      };
 
       const currentTimetableWeek = useMemo(() => {
         const classTkb = (currentYearData.timetablesByClass || {})[activeClass] || {};
@@ -2216,6 +2317,392 @@
         if (gpa >= 8.0 && conductRank === 'Tốt') return 'Học sinh Giỏi';
         if (gpa >= 6.5 && (conductRank === 'Tốt' || conductRank === 'Khá')) return 'Học sinh Tiên tiến';
         return 'Hoàn thành';
+      };
+
+      // ============================================================================
+      // 2. PHÂN TÍCH ĐÀ TIẾN BỘ CÁ NHÂN (TX1 -> TX4 -> GK -> CK & RÈN LUYỆN TUẦN)
+      // ============================================================================
+      const analyzeStudentProgress = useCallback((stu, targetSubj = selectedSubject) => {
+        const scoreObj = getStudentSubjectScoreObj(stu.id, targetSubj, semester);
+        const stageDefs = [
+          { key: 'tx1', label: 'TX1' },
+          { key: 'tx2', label: 'TX2' },
+          { key: 'tx3', label: 'TX3' },
+          { key: 'tx4', label: 'TX4' },
+          { key: 'gk', label: 'GK' },
+          { key: 'ck', label: 'CK' },
+        ];
+        const stagePoints = stageDefs.map((st) => {
+          const val = parseFloat(scoreObj?.[st.key]);
+          return {
+            ...st,
+            value: !isNaN(val) && val >= 0 && val <= 10 ? val : null,
+          };
+        });
+        const validPoints = stagePoints.filter((p) => p.value !== null);
+        const firstScore = validPoints.length > 0 ? validPoints[0].value : null;
+        const latestScore = validPoints.length > 0 ? validPoints[validPoints.length - 1].value : null;
+        const scoreDelta =
+          firstScore !== null && latestScore !== null && validPoints.length >= 2
+            ? Number((latestScore - firstScore).toFixed(1))
+            : 0;
+
+        const subjAvg = calculateSubjectAverage(scoreObj);
+        const overallGPA = getStudentOverallGPA(stu.id, summaryPeriodMode);
+        const weekCond = calculateWeeklyConductScore(stu.id, selectedWeek);
+        const prevWeekCond = calculateWeeklyConductScore(stu.id, Math.max(1, selectedWeek - 1));
+        const conductDelta = weekCond.score - prevWeekCond.score;
+
+        let trendType = 'STABLE'; // 'UP' | 'STABLE' | 'DOWN'
+        let trendLabel = 'Phong độ ổn định';
+        if (scoreDelta >= 0.5 || (scoreDelta >= 0.2 && weekCond.score >= 98 && (subjAvg ?? 0) >= 8.0)) {
+          trendType = 'UP';
+          trendLabel = 'Đang tiến bộ / Bứt phá';
+        } else if (
+          scoreDelta <= -0.5 ||
+          (subjAvg !== null && subjAvg < 5.5) ||
+          weekCond.score < 85 ||
+          stu.attitude === 'Còn thụ động' ||
+          stu.attitude === 'Cần nhắc nhở'
+        ) {
+          trendType = 'DOWN';
+          trendLabel = 'Đang tụt dốc • Cần kèm cặp';
+        }
+
+        return {
+          stagePoints,
+          validPoints,
+          firstScore,
+          latestScore,
+          scoreDelta,
+          subjAvg,
+          overallGPA,
+          weekConductScore: weekCond.score,
+          conductDelta,
+          trendType,
+          trendLabel,
+        };
+      }, [grades, activeClass, semester, selectedSubject, summaryPeriodMode, attendance, selectedWeek]);
+
+      // ============================================================================
+      // 3. RADAR DÒ CẢNH BÁO SỚM CẤM THI / NGUY CƠ Ở LẠI LỚP (CHUYÊN CẦN & ĐIỂM LIỆT)
+      // ============================================================================
+      const academicRiskRadar = useMemo(() => {
+        const MAX_ABSENT_QUOTA = 45; // Quy định Bộ GD&ĐT: Nghỉ quá 45 buổi/năm học không được lên lớp
+        const items = currentStudents.map((stu) => {
+          const yearCond = calculateYearAttendanceSummary(stu.id);
+          const weekCond = calculateWeeklyConductScore(stu.id, selectedWeek);
+          const totalAbsentSessions = yearCond.absentP + yearCond.absentK;
+          const absentQuotaPct = Math.min(100, Math.round((totalAbsentSessions / MAX_ABSENT_QUOTA) * 100));
+
+          const subjectDetails = currentSubjects.map((subj) => {
+            const scObj = getStudentSubjectScoreObj(stu.id, subj, semester);
+            const avg =
+              summaryPeriodMode === 'WHOLE_YEAR'
+                ? getSubjectWholeYearAvg(stu.id, subj)
+                : calculateSubjectAverage(scObj);
+            const neededCKForPass = calculateFinalExamForecast(scObj, 5.0);
+            return {
+              subject: subj,
+              avg,
+              neededCKForPass,
+              isCritical: avg !== null && avg <= 3.5,
+              isBelowPass: avg !== null && avg < 5.0,
+              isNearBorder: avg !== null && avg >= 5.0 && avg < 6.0,
+            };
+          });
+
+          const criticalSubjects = subjectDetails.filter((s) => s.isCritical);
+          const belowPassSubjects = subjectDetails.filter((s) => s.isBelowPass);
+          const nearBorderSubjects = subjectDetails.filter((s) => s.isNearBorder);
+          const gpa = getStudentOverallGPA(stu.id, summaryPeriodMode);
+          const prog = analyzeStudentProgress(stu, selectedSubject);
+
+          const reasons = [];
+          let riskScore = 0;
+
+          if (yearCond.absentK >= 3 || totalAbsentSessions >= 12) {
+            riskScore += 60;
+            reasons.push(`Vắng ${yearCond.absentK}K / ${yearCond.absentP}P (Chạm ngưỡng cảnh báo cấm thi chuyên cần)`);
+          } else if (yearCond.absentK >= 1 || totalAbsentSessions >= 3 || yearCond.late >= 3) {
+            riskScore += 30;
+            reasons.push(`Chuyên cần: Vắng ${yearCond.absentK}K, ${yearCond.absentP}P, Muộn ${yearCond.late} lần`);
+          }
+
+          if (criticalSubjects.length > 0) {
+            riskScore += 70;
+            reasons.push(`Vướng điểm liệt (≤ 3.5): ${criticalSubjects.map((s) => `${s.subject} (${s.avg})`).join(', ')}`);
+          }
+          if (belowPassSubjects.length >= 2) {
+            riskScore += 60;
+            reasons.push(`Dưới TB (< 5.0) từ 2 môn: ${belowPassSubjects.map((s) => `${s.subject} (${s.avg})`).join(', ')}`);
+          } else if (belowPassSubjects.length === 1) {
+            riskScore += 35;
+            reasons.push(`Môn dưới 5.0: ${belowPassSubjects[0].subject} (${belowPassSubjects[0].avg})`);
+          } else if (nearBorderSubjects.length > 0) {
+            riskScore += 20;
+            reasons.push(`Điểm sát ngưỡng 5.0: ${nearBorderSubjects.map((s) => `${s.subject} (${s.avg})`).join(', ')}`);
+          }
+
+          if (weekCond.score < 80 || yearCond.avgConductScore < 80) {
+            riskScore += 25;
+            reasons.push(`Điểm rèn luyện thấp (${weekCond.score}đ tuần này / TB năm ${yearCond.avgConductScore}đ)`);
+          }
+          if (prog.trendType === 'DOWN' && reasons.length === 0) {
+            riskScore += 20;
+            reasons.push(`Phong độ học tập đang giảm (${prog.scoreDelta}đ môn ${selectedSubject}) hoặc còn thụ động`);
+          }
+
+          let riskLevel = 'SAFE'; // 'DANGER' | 'WARNING' | 'SAFE'
+          if (
+            riskScore >= 55 ||
+            criticalSubjects.length > 0 ||
+            belowPassSubjects.length >= 2 ||
+            yearCond.absentK >= 3 ||
+            yearCond.yearConductRank === 'Chưa đạt'
+          ) {
+            riskLevel = 'DANGER';
+          } else if (riskScore >= 20 || belowPassSubjects.length === 1 || yearCond.absentK >= 1 || prog.trendType === 'DOWN') {
+            riskLevel = 'WARNING';
+          }
+
+          return {
+            student: stu,
+            riskLevel,
+            riskScore: Math.min(100, riskScore),
+            reasons,
+            yearCond,
+            weekCond,
+            totalAbsentSessions,
+            absentQuotaPct,
+            criticalSubjects,
+            belowPassSubjects,
+            nearBorderSubjects,
+            gpa,
+            progress: prog,
+          };
+        });
+
+        const dangerList = items.filter((i) => i.riskLevel === 'DANGER').sort((a, b) => b.riskScore - a.riskScore);
+        const warningList = items.filter((i) => i.riskLevel === 'WARNING').sort((a, b) => b.riskScore - a.riskScore);
+        const safeList = items.filter((i) => i.riskLevel === 'SAFE');
+
+        return {
+          allItems: items.sort((a, b) => b.riskScore - a.riskScore),
+          dangerList,
+          warningList,
+          safeList,
+        };
+      }, [currentStudents, attendance, grades, activeClass, selectedWeek, semester, summaryPeriodMode, currentSubjects, selectedSubject, analyzeStudentProgress]);
+
+      // ============================================================================
+      // 4. MA TRẬN GHÉP ĐÔI "ĐÔI BẠN CÙNG TIẾN" & TỰ ĐỘNG XẾP CHỖ NGỒI CÙNG BÀN
+      // ============================================================================
+      const currentPeerPairs = useMemo(() => {
+        return ((currentYearData.peerPairsByClass || {})[activeClass]) || [];
+      }, [currentYearData.peerPairsByClass, activeClass]);
+
+      // Map tra cứu nhanh bàn nào đang có cặp Đôi bạn cùng tiến
+      const peerPairByDeskMap = useMemo(() => {
+        const map = {};
+        currentPeerPairs.forEach((pair) => {
+          const mentor = currentStudents.find((s) => s.id === pair.mentorId);
+          const mentee = currentStudents.find((s) => s.id === pair.menteeId);
+          if (!mentor || !mentee) return;
+          // Kiểm tra nếu 2 học sinh đang ngồi chung 1 bàn (cùng col-desk)
+          const slotA = mentor.deskSlot || pair.deskSlotA || '';
+          const slotB = mentee.deskSlot || pair.deskSlotB || '';
+          const prefixA = slotA.split('-').slice(0, 2).join('-');
+          const prefixB = slotB.split('-').slice(0, 2).join('-');
+          const deskKey = prefixA && prefixA === prefixB ? prefixA : pair.deskKey || prefixA;
+          if (deskKey) {
+            map[deskKey] = {
+              ...pair,
+              mentor,
+              mentee,
+            };
+          }
+        });
+        return map;
+      }, [currentPeerPairs, currentStudents]);
+
+      const handleAutoPairAndSeatBuddies = () => {
+        if (currentStudents.length < 2) {
+          showToast('Cần ít nhất 2 học sinh trong lớp để ghép Đôi bạn cùng tiến!');
+          return;
+        }
+        // Đảm bảo mỗi bàn có ít nhất 2 chỗ ngồi để 2 bạn ngồi cạnh nhau
+        const cols = seatLayoutConfig.cols || 4;
+        const desksPerCol = seatLayoutConfig.desksPerCol || 5;
+        const seatsPerDesk = Math.max(2, seatLayoutConfig.seatsPerDesk || 2);
+        if (seatLayoutConfig.seatsPerDesk < 2) {
+          setSeatLayoutConfig((prev) => ({ ...prev, seatsPerDesk: 2 }));
+        }
+
+        // Chấm điểm tổng hợp từng học sinh theo môn đang chọn (hoặc ĐTB chung) + Chuyên cần
+        const scoredList = currentStudents.map((stu) => {
+          const subjAvg = calculateSubjectAverage(getStudentSubjectScoreObj(stu.id, selectedSubject, semester));
+          const gpa = getStudentOverallGPA(stu.id, summaryPeriodMode);
+          const academicScore = subjAvg ?? gpa ?? 6.8;
+          const yCond = calculateYearAttendanceSummary(stu.id);
+          const composite = academicScore * 10 + yCond.avgConductScore * 0.15;
+          return {
+            stu,
+            academicScore,
+            conductScore: yCond.avgConductScore,
+            composite,
+          };
+        });
+
+        // Sắp xếp từ cao xuống thấp: nửa trên là Mentor (HS kèm cặp), nửa dưới (đảo ngược từ yếu nhất lên) là Mentee (HS cần hỗ trợ)
+        const sortedDesc = [...scoredList].sort((a, b) => b.composite - a.composite);
+        const pairCount = Math.floor(sortedDesc.length / 2);
+        const mentors = sortedDesc.slice(0, pairCount);
+        const mentees = sortedDesc.slice( sortedDesc.length - pairCount ).reverse();
+        const unpairedMiddle = sortedDesc.length % 2 === 1 ? [sortedDesc[pairCount]] : [];
+
+        // Danh sách các bàn ưu tiên từ bàn đầu (Bàn 1 -> Bàn cuối) rải đều qua các dãy
+        const availableDesks = [];
+        for (let r = 1; r <= desksPerCol; r++) {
+          for (let c = 1; c <= cols; c++) {
+            availableDesks.push({ col: c, desk: r, deskKey: `${c}-${r}` });
+          }
+        }
+
+        const newPairs = [];
+        const newDeskAssignmentMap = {}; // stuId -> { deskSlot, team }
+
+        // Ưu tiên xếp các cặp có Mentee điểm thấp ngồi bàn đầu để giáo viên dễ quan sát
+        mentors.forEach((mItem, idx) => {
+          const tItem = mentees[idx];
+          const targetDesk = availableDesks[idx] || { col: (idx % cols) + 1, desk: Math.floor(idx / cols) + 1, deskKey: `${(idx % cols) + 1}-${Math.floor(idx / cols) + 1}` };
+          const slotMentor = `${targetDesk.col}-${targetDesk.desk}-1`;
+          const slotMentee = `${targetDesk.col}-${targetDesk.desk}-2`;
+
+          newDeskAssignmentMap[mItem.stu.id] = { deskSlot: slotMentor, team: targetDesk.col };
+          newDeskAssignmentMap[tItem.stu.id] = { deskSlot: slotMentee, team: targetDesk.col };
+
+          newPairs.push({
+            id: `PAIR_${Date.now()}_${idx}`,
+            mentorId: mItem.stu.id,
+            menteeId: tItem.stu.id,
+            subjectFocus: selectedSubject,
+            deskKey: targetDesk.deskKey,
+            deskLabel: `Dãy ${targetDesk.col} • Bàn ${targetDesk.desk}`,
+            deskSlotA: slotMentor,
+            deskSlotB: slotMentee,
+            baselineMenteeScore: tItem.academicScore,
+            targetMenteeScore: Number(Math.min(10, Math.max(6.5, tItem.academicScore + 1.2)).toFixed(1)),
+            createdAtWeek: selectedWeek,
+            note: `Kèm môn ${selectedSubject} & hỗ trợ bài tập trên lớp`,
+          });
+        });
+
+        // Nếu sĩ số lẻ 1 học sinh, xếp vào bàn tiếp theo
+        if (unpairedMiddle.length === 1) {
+          const remStu = unpairedMiddle[0].stu;
+          const nextDesk = availableDesks[pairCount];
+          if (nextDesk) {
+            newDeskAssignmentMap[remStu.id] = {
+              deskSlot: `${nextDesk.col}-${nextDesk.desk}-1`,
+              team: nextDesk.col,
+            };
+          }
+        }
+
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) =>
+            newDeskAssignmentMap[s.id]
+              ? { ...s, deskSlot: newDeskAssignmentMap[s.id].deskSlot, team: newDeskAssignmentMap[s.id].team }
+              : s
+          ),
+        }));
+
+        setPeerPairsByClass((prev) => ({
+          ...(prev || {}),
+          [activeClass]: newPairs,
+        }));
+
+        showToast(`Đã ghép ${newPairs.length} cặp "Đôi bạn cùng tiến" và tự động xếp ngồi cùng bàn trên Sơ đồ lớp!`);
+      };
+
+      const handleSeatSinglePairTogether = (pair) => {
+        const [colStr, deskStr] = (pair.deskKey || '1-1').split('-');
+        const colNum = Number(colStr) || 1;
+        const deskNum = Number(deskStr) || 1;
+        const slotA = `${colNum}-${deskNum}-1`;
+        const slotB = `${colNum}-${deskNum}-2`;
+
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) => {
+            if (s.id === pair.mentorId) return { ...s, deskSlot: slotA, team: colNum };
+            if (s.id === pair.menteeId) return { ...s, deskSlot: slotB, team: colNum };
+            if (s.deskSlot === slotA || s.deskSlot === slotB) return { ...s, deskSlot: '' };
+            return s;
+          }),
+        }));
+        showToast(`Đã xếp cặp Đôi bạn cùng tiến ngồi cùng nhau tại Dãy ${colNum} - Bàn ${deskNum}!`);
+      };
+
+      const handleAddCustomPeerPair = (e) => {
+        e.preventDefault();
+        const { mentorId, menteeId, subjectFocus, targetCol, targetDesk, note } = customPairForm;
+        if (!mentorId || !menteeId || mentorId === menteeId) {
+          showToast('Vui lòng chọn 2 học sinh khác nhau để ghép đôi!');
+          return;
+        }
+        const menteeStu = currentStudents.find((s) => s.id === menteeId);
+        const curScore = calculateSubjectAverage(getStudentSubjectScoreObj(menteeId, subjectFocus || selectedSubject, semester)) ?? getStudentOverallGPA(menteeId) ?? 5.5;
+        const colNum = Number(targetCol) || 1;
+        const deskNum = Number(targetDesk) || 1;
+        const slotA = `${colNum}-${deskNum}-1`;
+        const slotB = `${colNum}-${deskNum}-2`;
+
+        const newPair = {
+          id: `PAIR_${Date.now()}`,
+          mentorId,
+          menteeId,
+          subjectFocus: subjectFocus || selectedSubject,
+          deskKey: `${colNum}-${deskNum}`,
+          deskLabel: `Dãy ${colNum} • Bàn ${deskNum}`,
+          deskSlotA: slotA,
+          deskSlotB: slotB,
+          baselineMenteeScore: curScore,
+          targetMenteeScore: Number(Math.min(10, Math.max(6.5, curScore + 1.0)).toFixed(1)),
+          createdAtWeek: selectedWeek,
+          note: note || `Kèm cặp môn ${subjectFocus || selectedSubject}`,
+        };
+
+        setPeerPairsByClass((prev) => ({
+          ...(prev || {}),
+          [activeClass]: [
+            ...(((prev || {})[activeClass] || []).filter((p) => p.mentorId !== mentorId && p.menteeId !== menteeId)),
+            newPair,
+          ],
+        }));
+
+        // Đồng bộ xếp 2 em ngồi chung bàn luôn
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) => {
+            if (s.id === mentorId) return { ...s, deskSlot: slotA, team: colNum };
+            if (s.id === menteeId) return { ...s, deskSlot: slotB, team: colNum };
+            if (s.deskSlot === slotA || s.deskSlot === slotB) return { ...s, deskSlot: '' };
+            return s;
+          }),
+        }));
+
+        showToast(`Đã ghép đôi và xếp chỗ ngồi chung tại Dãy ${colNum} - Bàn ${deskNum}!`);
+      };
+
+      const handleRemovePeerPair = (pairId) => {
+        setPeerPairsByClass((prev) => ({
+          ...(prev || {}),
+          [activeClass]: ((prev || {})[activeClass] || []).filter((p) => p.id !== pairId),
+        }));
+        showToast('Đã xóa cặp Đôi bạn cùng tiến.');
       };
 
       const buildSmartZaloTemplate = (stu, templateId) => {
@@ -3223,11 +3710,12 @@
                 { id: 'CHUYENCAN', label: `02. Chuyên cần Tuần ${selectedWeek} (CN → T7)` },
                 { id: 'SODIEM', label: '03. Sổ điểm KTĐG & Dự báo CK' },
                 { id: 'THUNOP', label: '04. Bài tập & Khoản thu' },
-                { id: 'SODO', label: '05. Sơ đồ Chỗ ngồi theo Bàn' },
+                { id: 'SODO', label: '05. Sơ đồ Bàn & Đôi Bạn Cùng Tiến' },
                 { id: 'TONGKET', label: '06. Tổng kết, AI & Xuất PDF' },
                 { id: 'LIENLAC', label: '07. Sổ Liên Lạc & Tương Tác PH' },
                 { id: 'TIENICH', label: '08. Biểu Đồ Vi Phạm & Tiện Ích Lớp' },
                 { id: 'TKB', label: `09. Thời Khóa Biểu Tuần ${selectedWeek} (T2 → CN)` },
+                { id: 'RADAR_TIENBO', label: `10. Radar Cấm Thi, Tiến Bộ & Hồ Sơ NĐ81 (${academicRiskRadar.dangerList.length + academicRiskRadar.warningList.length})` },
               ].map((tab) => {
                 const active = activeTab === tab.id;
                 return (
@@ -3549,6 +4037,183 @@
                   </div>
                 </div>
 
+                {/* LỘ TRÌNH HOÀN THIỆN HỒ SƠ MIỄN GIẢM HỌC PHÍ NGHỀ (NĐ 81) */}
+                {(() => {
+                  const vocStudents = currentStudents.filter((s) => isStudentTakingVocational(s));
+                  const completedVoc = vocStudents.filter((s) => getStudentDecree81Summary(s).isComplete);
+                  const missingVoc = vocStudents.filter((s) => !getStudentDecree81Summary(s).isComplete);
+                  const displayList =
+                    decree81FilterMode === 'MISSING_ONLY'
+                      ? missingVoc
+                      : decree81FilterMode === 'COMPLETED_ONLY'
+                      ? completedVoc
+                      : vocStudents;
+                  return (
+                    <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-[#8f5c38] text-white text-[10px] font-bold uppercase">
+                              Lộ trình NĐ 81/2021
+                            </span>
+                            <h3 className="text-sm font-bold text-[#183c42]">
+                              Theo Dõi Lộ Trình 4 Bước Hoàn Thiện Hồ Sơ Miễn Giảm Học Phí Nghề ({completedVoc.length}/{vocStudents.length} HS hoàn tất)
+                            </h3>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Kiểm soát chi tiết 4 loại giấy tờ bắt buộc: (1) Đơn đề nghị NĐ81 • (2) Bản sao Bằng THCS • (3) Bản sao Khai sinh • (4) CCCD / Xác nhận cư trú CT07.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setDecree81FilterMode('ALL_VOC')}
+                            className={`px-2.5 py-1 rounded-lg font-semibold border ${
+                              decree81FilterMode === 'ALL_VOC' ? 'bg-[#183c42] text-white border-[#183c42]' : 'bg-[#f6f5ef] border-[#dcd8cb]'
+                            }`}
+                          >
+                            Tất cả ĐK Nghề ({vocStudents.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDecree81FilterMode('MISSING_ONLY')}
+                            className={`px-2.5 py-1 rounded-lg font-semibold border ${
+                              decree81FilterMode === 'MISSING_ONLY' ? 'bg-[#8f5c38] text-white border-[#8f5c38]' : 'bg-amber-50 text-amber-900 border-amber-200'
+                            }`}
+                          >
+                            Còn nợ giấy tờ ({missingVoc.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDecree81FilterMode('COMPLETED_ONLY')}
+                            className={`px-2.5 py-1 rounded-lg font-semibold border ${
+                              decree81FilterMode === 'COMPLETED_ONLY' ? 'bg-[#526d5d] text-white border-[#526d5d]' : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                            }`}
+                          >
+                            Đã đủ 4/4 ({completedVoc.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDecree81RoadmapInHoso((v) => !v)}
+                            className="px-2.5 py-1 rounded-lg bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] font-bold"
+                          >
+                            {showDecree81RoadmapInHoso ? 'Thu gọn bảng NĐ81' : 'Mở chi tiết bảng NĐ81'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {showDecree81RoadmapInHoso && (
+                        <div className="space-y-2.5">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                            {DECREE81_DOC_STEPS.map((step) => {
+                              const submittedCount = vocStudents.filter((s) => getStudentDecree81Summary(s).checklist[step.key]).length;
+                              const missingStepCount = vocStudents.length - submittedCount;
+                              return (
+                                <div key={step.key} className="p-2.5 rounded-xl bg-[#faf9f5] border border-[#e2dfd5] flex flex-col justify-between">
+                                  <div className="font-bold text-[#183c42] text-[11px]">{step.fullLabel}</div>
+                                  <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-[#ece9df]">
+                                    <span className="text-emerald-700 font-bold">Đã nộp: {submittedCount} HS</span>
+                                    <span className={missingStepCount > 0 ? 'text-red-700 font-bold' : 'text-slate-400'}>
+                                      Thiếu: {missingStepCount} HS
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {displayList.length > 0 && (
+                            <div className="border border-[#e2dfd5] rounded-xl overflow-x-auto max-h-64 overflow-y-auto">
+                              <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                  <tr className="bg-[#efeee6] text-[#183c42] font-bold border-b border-[#e2dfd5]">
+                                    <th className="py-2 px-2.5 border-r border-[#e2dfd5]">Học sinh & Nghề ĐK</th>
+                                    {DECREE81_DOC_STEPS.map((st) => (
+                                      <th key={st.key} className="py-2 px-2 border-r border-[#e2dfd5] text-center">{st.shortLabel}</th>
+                                    ))}
+                                    <th className="py-2 px-2.5 border-r border-[#e2dfd5] text-center">Tiến độ</th>
+                                    <th className="py-2 px-2.5 text-center">Thao tác nhanh</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#ece9df]">
+                                  {displayList.map((stu) => {
+                                    const d81 = getStudentDecree81Summary(stu);
+                                    return (
+                                      <tr key={stu.id} className="hover:bg-[#faf9f5]">
+                                        <td className="py-1.5 px-2.5 border-r border-[#ece9df]">
+                                          <div className="font-bold text-slate-900">{stu.name}</div>
+                                          <div className="text-[10px] text-slate-500">{stu.vocational} • {stu.tuitionExemption}</div>
+                                        </td>
+                                        {DECREE81_DOC_STEPS.map((st) => {
+                                          const ok = d81.checklist[st.key];
+                                          return (
+                                            <td key={st.key} className="py-1.5 px-2 border-r border-[#ece9df] text-center">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleToggleTuitionChecklistStep(stu.id, st.key)}
+                                                className={`px-2 py-1 rounded font-bold text-[10px] border ${
+                                                  ok
+                                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                    : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                                                }`}
+                                              >
+                                                {ok ? '✓ Đã nộp' : '✕ Chưa nộp'}
+                                              </button>
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="py-1.5 px-2.5 border-r border-[#ece9df] text-center font-bold">
+                                          <span className={d81.isComplete ? 'text-emerald-700' : 'text-[#8f5c38]'}>
+                                            {d81.completedCount}/4 ({d81.pct}%)
+                                          </span>
+                                        </td>
+                                        <td className="py-1.5 px-2.5 text-center">
+                                          <div className="flex items-center justify-center gap-1">
+                                            {!d81.isComplete && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMarkAllDecree81Complete(stu.id)}
+                                                className="px-2 py-1 bg-emerald-700 text-white rounded text-[10px] font-semibold"
+                                              >
+                                                Đủ 100%
+                                              </button>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleOpenZaloDirect(
+                                                  stu,
+                                                  `[NHẮC HOÀN THIỆN HỒ SƠ MIỄN GIẢM HỌC PHÍ NGHỀ NĐ 81 - ${currentClassObj.name}]
+Kính gửi Phụ huynh em ${stu.name} (Ngành nghề: ${stu.vocational}):
+Hiện tại hồ sơ miễn giảm học phí nghề của em đã nộp ${d81.completedCount}/4 mục.${
+                                                    d81.isComplete
+                                                      ? ' Hồ sơ đã hoàn tất 100%, nhà trường đã ghi nhận đầy đủ.'
+                                                      : ` Gia đình vui lòng bổ sung sớm các giấy tờ còn thiếu gồm: ${d81.missingSteps
+                                                          .map((m) => m.fullLabel)
+                                                          .join('; ')} để kịp đợt xét duyệt chế độ NĐ 81.`
+                                                  }
+Trân trọng cảm ơn Quý Phụ huynh - GVCN ${teacherName}.`
+                                                )
+                                              }
+                                              className="px-2 py-1 bg-[#526d5d] text-white rounded text-[10px] font-semibold"
+                                            >
+                                              Báo Zalo PH
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div className="bg-white border border-[#e2dfd5] rounded-xl overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
@@ -3670,26 +4335,52 @@
                             </td>
                             <td className="py-1.5 px-2 border-r border-[#ece9df] space-y-1">
                               {takingVoc ? (
-                                <>
-                                  <select
-                                    value={stu.tuitionExemption || 'Miễn 100% học phí nghề (NĐ 81)'}
-                                    onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'tuitionExemption', e.target.value)}
-                                    className="w-full px-1.5 py-1 bg-white border border-[#dcd8cb] rounded text-[11px] font-medium text-[#183c42]"
-                                  >
-                                    {TUITION_EXEMPTION_LIST.map((item) => <option key={item} value={item}>{item}</option>)}
-                                  </select>
-                                  <input
-                                    type="text"
-                                    value={stu.tuitionDocStatus || ''}
-                                    placeholder="Tình trạng hồ sơ HP..."
-                                    onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'tuitionDocStatus', e.target.value)}
-                                    className={`w-full px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
-                                      (stu.tuitionDocStatus || '').includes('đủ')
-                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                        : 'bg-amber-50 text-amber-800 border-amber-200'
-                                    }`}
-                                  />
-                                </>
+                                (() => {
+                                  const d81 = getStudentDecree81Summary(stu);
+                                  return (
+                                    <div className="space-y-1">
+                                      <select
+                                        value={stu.tuitionExemption || 'Miễn 100% học phí nghề (NĐ 81)'}
+                                        onChange={(e) => handleUpdateStudentFieldInline(stu.id, 'tuitionExemption', e.target.value)}
+                                        className="w-full px-1.5 py-1 bg-white border border-[#dcd8cb] rounded text-[11px] font-medium text-[#183c42]"
+                                      >
+                                        {TUITION_EXEMPTION_LIST.map((item) => <option key={item} value={item}>{item}</option>)}
+                                    </select>
+                                      {/* Lộ trình 4 mốc giấy tờ NĐ 81 bấm trực tiếp */}
+                                      <div className="grid grid-cols-2 gap-1">
+                                        {DECREE81_DOC_STEPS.map((st) => {
+                                          const checked = d81.checklist[st.key];
+                                          return (
+                                            <button
+                                              key={st.key}
+                                              type="button"
+                                              onClick={() => handleToggleTuitionChecklistStep(stu.id, st.key)}
+                                              title={`${st.fullLabel} (${checked ? 'Đã nộp' : 'Chưa nộp - Bấm để đánh dấu'})`}
+                                              className={`px-1.5 py-0.5 rounded text-[10px] font-semibold border text-left truncate transition-colors ${
+                                                checked
+                                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                  : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                                              }`}
+                                            >
+                                              {checked ? '✓ ' : '○ '}{st.shortLabel}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="flex items-center justify-between gap-1">
+                                        <div className="flex-1 h-1.5 bg-[#ece9df] rounded-full overflow-hidden">
+                                          <div
+                                            className={`h-full ${d81.isComplete ? 'bg-emerald-600' : 'bg-[#8f5c38]'}`}
+                                            style={{ width: `${d81.pct}%` }}
+                                          />
+                                        </div>
+                                        <span className={`text-[10px] font-bold ${d81.isComplete ? 'text-emerald-700' : 'text-[#8f5c38]'}`}>
+                                          {d81.completedCount}/4 ({d81.pct}%)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <span className="inline-block px-2 py-1 rounded bg-stone-100 text-stone-500 text-[10px] font-medium">
                                   Không xét HP nghề
@@ -4531,10 +5222,10 @@
                 <div className="bg-white p-4 rounded-xl border border-[#e2dfd5] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-bold text-[#183c42]">
-                      Sơ Đồ Bàn Học Lớp {currentClassObj.name} (Ghi & Xếp Từng Học Sinh Vào Bàn)
+                      Sơ Đồ Bàn Học & Ma Trận Ghép Đôi "Đôi Bạn Cùng Tiến" - {currentClassObj.name}
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Chọn học sinh vào từng ghế, bấm <strong>"+ Ghi tên"</strong> để điền trực tiếp học sinh mới vào bàn, hoặc in sơ đồ PDF dán bàn giáo viên.
+                      Hỗ trợ xếp chỗ ngồi thủ công hoặc <strong>Ghép cặp Đôi bạn cùng tiến (1 HS Giỏi kèm 1 HS Cần hỗ trợ ngồi chung bàn)</strong> theo môn học và theo dõi tiến bộ.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -4568,8 +5259,17 @@
                         {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} chỗ</option>)}
                       </select>
                     </div>
+                    <button
+                      type="button"
+                      onClick={handleAutoPairAndSeatBuddies}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-bold shadow-sm"
+                      title="Tự động phân tích điểm số/chuyên cần để ghép 1 HS Khá/Giỏi kèm 1 HS Cần hỗ trợ ngồi cùng bàn"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Ghép Đôi Bạn Cùng Tiến & Xếp Bàn
+                    </button>
                     <button onClick={handleAutoArrangeDesks} className="px-3 py-1.5 bg-[#526d5d] text-white rounded-lg font-semibold">
-                      Tự động xếp
+                      Xếp tuần tự
                     </button>
                     <button onClick={handleClearAllDesks} className="px-3 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] text-slate-700 rounded-lg font-semibold">
                       Làm trống
@@ -4582,6 +5282,180 @@
                       In / Xuất PDF Sơ đồ
                     </button>
                   </div>
+                </div>
+
+                {/* BẢNG ĐIỀU KHIỂN GHÉP ĐÔI "ĐÔI BẠN CÙNG TIẾN" TRỰC TIẾP TRÊN SƠ ĐỒ CHỖ NGỒI */}
+                <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-[#8f5c38] text-white text-[10px] font-bold uppercase">
+                          Mô hình Đôi Bạn Cùng Tiến
+                        </span>
+                        <h3 className="text-sm font-bold text-[#183c42]">
+                          Danh Sách Các Cặp "Đôi Bạn Cùng Tiến" Đang Ngồi Cùng Bàn ({currentPeerPairs.length} cặp)
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Mỗi cặp gồm 1 Học sinh Nòng cốt (Khá/Giỏi) ngồi cạnh 1 Học sinh Cần hỗ trợ tại cùng 1 bàn để kèm môn <strong>{selectedSubject}</strong> và nhắc nhở chuyên cần.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-700">Môn trọng tâm ghép đôi:</span>
+                      <select
+                        value={selectedSubject}
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        className="px-2.5 py-1 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-bold text-[#183c42]"
+                      >
+                        {currentSubjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAutoPairAndSeatBuddies}
+                        className="px-3 py-1.5 bg-[#183c42] hover:bg-[#24525a] text-white rounded-lg font-semibold"
+                      >
+                        ⚡ Tự động ghép cặp theo môn {selectedSubject}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Form thêm cặp thủ công */}
+                  <form onSubmit={handleAddCustomPeerPair} className="grid grid-cols-1 md:grid-cols-6 gap-2 bg-[#faf9f5] p-3 rounded-xl border border-[#e2dfd5] items-end">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#183c42] mb-1">HS Kèm cặp (Nòng cốt)</label>
+                      <select
+                        value={customPairForm.mentorId}
+                        onChange={(e) => setCustomPairForm((p) => ({ ...p, mentorId: e.target.value }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"
+                      >
+                        <option value="">-- Chọn HS kèm --</option>
+                        {currentStudents.map((s) => {
+                          const avg = calculateSubjectAverage(getStudentSubjectScoreObj(s.id, selectedSubject, semester)) ?? getStudentOverallGPA(s.id);
+                          return <option key={s.id} value={s.id}>{s.name} (ĐTB: {avg ?? '--'})</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#8f5c38] mb-1">HS Được kèm (Cần hỗ trợ)</label>
+                      <select
+                        value={customPairForm.menteeId}
+                        onChange={(e) => setCustomPairForm((p) => ({ ...p, menteeId: e.target.value }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"
+                      >
+                        <option value="">-- Chọn HS được kèm --</option>
+                        {currentStudents.map((s) => {
+                          const avg = calculateSubjectAverage(getStudentSubjectScoreObj(s.id, selectedSubject, semester)) ?? getStudentOverallGPA(s.id);
+                          return <option key={s.id} value={s.id}>{s.name} (ĐTB: {avg ?? '--'})</option>;
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Xếp vào Dãy (Tổ)</label>
+                      <select
+                        value={customPairForm.targetCol}
+                        onChange={(e) => setCustomPairForm((p) => ({ ...p, targetCol: Number(e.target.value) }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"
+                      >
+                        {Array.from({ length: seatLayoutConfig.cols }, (_, i) => i + 1).map((c) => (
+                          <option key={c} value={c}>Dãy {c} (Tổ {c})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Xếp vào Bàn số</label>
+                      <select
+                        value={customPairForm.targetDesk}
+                        onChange={(e) => setCustomPairForm((p) => ({ ...p, targetDesk: Number(e.target.value) }))}
+                        className="w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"
+                      >
+                        {Array.from({ length: seatLayoutConfig.desksPerCol }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d}>Bàn {d}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Mục tiêu kèm cặp</label>
+                      <input
+                        type="text"
+                        value={customPairForm.note}
+                        onChange={(e) => setCustomPairForm((p) => ({ ...p, note: e.target.value }))}
+                        placeholder="Ghi chú mục tiêu..."
+                        className="w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg"
+                      />
+                    </div>
+                    <button type="submit" className="py-1.5 px-3 bg-[#526d5d] hover:bg-[#425a4c] text-white rounded-lg font-bold">
+                      + Ghép & Xếp Bàn
+                    </button>
+                  </form>
+
+                  {currentPeerPairs.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                      {currentPeerPairs.map((pair, idx) => {
+                        const mentor = currentStudents.find((s) => s.id === pair.mentorId);
+                        const mentee = currentStudents.find((s) => s.id === pair.menteeId);
+                        if (!mentor || !mentee) return null;
+                        const mentorAvg = calculateSubjectAverage(getStudentSubjectScoreObj(mentor.id, pair.subjectFocus || selectedSubject, semester)) ?? getStudentOverallGPA(mentor.id) ?? '--';
+                        const menteeCurrentAvg = calculateSubjectAverage(getStudentSubjectScoreObj(mentee.id, pair.subjectFocus || selectedSubject, semester)) ?? getStudentOverallGPA(mentee.id);
+                        const menteeProg = analyzeStudentProgress(mentee, pair.subjectFocus || selectedSubject);
+                        const deltaFromBaseline =
+                          menteeCurrentAvg !== null && pair.baselineMenteeScore !== undefined
+                            ? Number((menteeCurrentAvg - Number(pair.baselineMenteeScore)).toFixed(1))
+                            : menteeProg.scoreDelta;
+                        return (
+                          <div key={pair.id} className="p-3 rounded-xl border border-[#d6d2c4] bg-[#faf9f5] flex flex-col justify-between gap-2">
+                            <div className="flex items-center justify-between border-b border-[#ece9df] pb-1.5">
+                              <span className="px-2 py-0.5 rounded bg-[#183c42] text-amber-200 font-bold text-[10px]">
+                                Cặp #{idx + 1} • {pair.deskLabel || `Bàn ${pair.deskKey}`}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSeatSinglePairTogether(pair)}
+                                  className="px-2 py-0.5 rounded bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] font-semibold text-[10px]"
+                                  title="Đồng bộ đưa 2 học sinh này về đúng bàn trên sơ đồ"
+                                >
+                                  Ghim vào bàn
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePeerPair(pair.id)}
+                                  className="text-slate-400 hover:text-red-600 p-0.5"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200">
+                                <div className="text-[10px] font-bold text-emerald-800 uppercase">★ HS Kèm cặp (Ghế 1)</div>
+                                <div className="font-bold text-slate-900 truncate mt-0.5">{mentor.name}</div>
+                                <div className="text-[11px] text-emerald-900 font-semibold">ĐTB {pair.subjectFocus || selectedSubject}: {mentorAvg}</div>
+                              </div>
+                              <div className="p-2 rounded-lg bg-amber-50/80 border border-amber-200">
+                                <div className="text-[10px] font-bold text-[#8f5c38] uppercase">▲ HS Được kèm (Ghế 2)</div>
+                                <div className="font-bold text-slate-900 truncate mt-0.5">{mentee.name}</div>
+                                <div className="text-[11px] text-[#8f5c38] font-semibold">
+                                  Hiện tại: {menteeCurrentAvg ?? '--'} (Mục tiêu: ≥{pair.targetMenteeScore})
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#ece9df]">
+                              <span className="text-slate-600 truncate">{pair.note}</span>
+                              <span className={`font-bold px-2 py-0.5 rounded ${
+                                deltaFromBaseline > 0
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : deltaFromBaseline < 0
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-stone-200 text-stone-700'
+                              }`}>
+                                Tiến độ: {deltaFromBaseline > 0 ? `+${deltaFromBaseline}đ ▲` : deltaFromBaseline < 0 ? `${deltaFromBaseline}đ ▼` : 'Đang kèm'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-[#183c42] text-white rounded-xl p-3 flex items-center justify-between text-xs font-bold">
@@ -4608,10 +5482,27 @@
                         </span>
                       </div>
                       <div className="space-y-2.5">
-                        {Array.from({ length: seatLayoutConfig.desksPerCol }, (_, rIdx) => rIdx + 1).map((deskNum) => (
-                          <div key={deskNum} className="border border-[#d6d2c4] rounded-lg bg-[#faf9f5] p-2 space-y-1.5">
+                        {Array.from({ length: seatLayoutConfig.desksPerCol }, (_, rIdx) => rIdx + 1).map((deskNum) => {
+                          const deskKey = `${colNum}-${deskNum}`;
+                          const pairedBuddyOnDesk = peerPairByDeskMap[deskKey];
+                          return (
+                          <div
+                            key={deskNum}
+                            className={`border rounded-lg p-2 space-y-1.5 transition-colors ${
+                              pairedBuddyOnDesk
+                                ? 'border-[#8f5c38] bg-amber-50/40 shadow-sm'
+                                : 'border-[#d6d2c4] bg-[#faf9f5]'
+                            }`}
+                          >
                             <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
-                              <span>BÀN {deskNum}</span>
+                              <span className="flex items-center gap-1">
+                                <span>BÀN {deskNum}</span>
+                                {pairedBuddyOnDesk && (
+                                  <span className="px-1.5 py-0.2 rounded bg-[#8f5c38] text-white text-[9px] font-bold">
+                                    🤝 Đôi bạn cùng tiến
+                                  </span>
+                                )}
+                              </span>
                               <span>Dãy {colNum}</span>
                             </div>
                             <div className={`grid gap-2 ${seatLayoutConfig.seatsPerDesk === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
@@ -4671,12 +5562,29 @@
                                         <option key={opt.id} value={opt.id}>{opt.name}</option>
                                       ))}
                                     </select>
-                                  </div>
-                                );
-                              })}
+                                      {seatedStu && (
+                                        <div className="mt-1 flex items-center justify-between text-[10px]">
+                                          <span className="text-slate-600 font-medium">
+                                            ĐTB {selectedSubject}:{' '}
+                                            <strong className="text-[#183c42]">
+                                              {calculateSubjectAverage(getStudentSubjectScoreObj(seatedStu.id, selectedSubject, semester)) ?? '--'}
+                                            </strong>
+                                          </span>
+                                          {pairedBuddyOnDesk && pairedBuddyOnDesk.mentorId === seatedStu.id && (
+                                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">★ Kèm bạn</span>
+                                          )}
+                                          {pairedBuddyOnDesk && pairedBuddyOnDesk.menteeId === seatedStu.id && (
+                                            <span className="px-1.5 py-0.2 rounded bg-amber-100 text-[#8f5c38] font-bold">▲ Được kèm</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -6084,6 +6992,352 @@
                       })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* =================================================================
+                10. RADAR CẢNH BÁO CẤM THI, TIẾN BỘ CÁ NHÂN, HỒ SƠ NĐ81 & ĐÔI BẠN CÙNG TIẾN
+            ================================================================== */}
+            {activeTab === 'RADAR_TIENBO' && (
+              <div className="space-y-4 text-xs">
+                {/* 4 Thẻ KPI Tổng quan */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-white border border-red-200 rounded-xl p-4 space-y-1">
+                    <div className="text-[11px] font-bold text-red-700 uppercase">1. Báo Động Đỏ (Nguy Cơ Cấm Thi / Ở Lại)</div>
+                    <div className="text-2xl font-bold text-red-700">{academicRiskRadar.dangerList.length} HS</div>
+                    <div className="text-[11px] text-slate-500">Vắng ≥ 3K / Điểm liệt ≤ 3.5 / ≥ 2 môn dưới 5.0</div>
+                  </div>
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 space-y-1">
+                    <div className="text-[11px] font-bold text-[#8f5c38] uppercase">2. Cảnh Báo Sớm (Cần Kèm Sát)</div>
+                    <div className="text-2xl font-bold text-[#8f5c38]">{academicRiskRadar.warningList.length} HS</div>
+                    <div className="text-[11px] text-slate-500">Điểm đang tụt dốc, sát mức 5.0 hoặc đi muộn/vắng</div>
+                  </div>
+                  <div className="bg-white border border-emerald-200 rounded-xl p-4 space-y-1">
+                    <div className="text-[11px] font-bold text-[#526d5d] uppercase">3. Đôi Bạn Cùng Tiến Đang Ghép</div>
+                    <div className="text-2xl font-bold text-[#183c42]">{currentPeerPairs.length} Cặp</div>
+                    <div className="text-[11px] text-slate-500">Đã xếp ngồi chung bàn kèm môn {selectedSubject}</div>
+                  </div>
+                  <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-1">
+                    <div className="text-[11px] font-bold text-[#183c42] uppercase">4. Hồ Sơ Miễn Giảm HP (NĐ 81)</div>
+                    <div className="text-2xl font-bold text-emerald-700">
+                      {currentStudents.filter((s) => isStudentTakingVocational(s) && getStudentDecree81Summary(s).isComplete).length}/
+                      {currentStudents.filter((s) => isStudentTakingVocational(s)).length} HS
+                    </div>
+                    <div className="text-[11px] text-slate-500">Hoàn thành đủ 4/4 loại giấy tờ miễn giảm HP nghề</div>
+                  </div>
+                </div>
+
+                {/* KHỐI 1: RADAR DÒ CẢNH BÁO CẤM THI & NGUY CƠ HỌC VỤ */}
+                <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-red-700 text-white text-[10px] font-bold uppercase">
+                          Radar Học Vụ & Chuyên Cần
+                        </span>
+                        <h3 className="text-sm font-bold text-[#183c42]">
+                          Radar Dò Nguy Cơ Cấm Thi (Trần 45 Buổi Nghỉ/Năm) & Điểm Liệt / Dưới Trung Bình
+                        </h3>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Tự động quét toàn bộ dữ liệu Chuyên cần và Điểm các môn để phát hiện sớm học sinh có nguy cơ bị cấm thi hoặc không đủ điều kiện lên lớp.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setRadarFilterMode('AT_RISK_ALL')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold border ${
+                          radarFilterMode === 'AT_RISK_ALL' ? 'bg-[#183c42] text-white border-[#183c42]' : 'bg-[#f6f5ef] border-[#dcd8cb]'
+                        }`}
+                      >
+                        Cần lưu ý ({academicRiskRadar.dangerList.length + academicRiskRadar.warningList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRadarFilterMode('DANGER_ONLY')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold border ${
+                          radarFilterMode === 'DANGER_ONLY' ? 'bg-red-700 text-white border-red-700' : 'bg-red-50 text-red-800 border-red-200'
+                        }`}
+                      >
+                        Báo động Đỏ ({academicRiskRadar.dangerList.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRadarFilterMode('ALL_STUDENTS')}
+                        className={`px-3 py-1.5 rounded-lg font-semibold border ${
+                          radarFilterMode === 'ALL_STUDENTS' ? 'bg-[#526d5d] text-white border-[#526d5d]' : 'bg-[#f6f5ef] border-[#dcd8cb]'
+                        }`}
+                      >
+                        Toàn bộ lớp ({academicRiskRadar.allItems.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const list =
+                      radarFilterMode === 'DANGER_ONLY'
+                        ? academicRiskRadar.dangerList
+                        : radarFilterMode === 'AT_RISK_ALL'
+                        ? [...academicRiskRadar.dangerList, ...academicRiskRadar.warningList]
+                        : academicRiskRadar.allItems;
+
+                    if (list.length === 0) {
+                      return (
+                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-semibold">
+                          Không có học sinh nào nằm trong nhóm nguy cơ cấm thi hoặc điểm liệt. Cả lớp đều trong ngưỡng an toàn!
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="border border-[#e2dfd5] rounded-xl overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-[#efeee6] text-[#183c42] font-bold border-b border-[#e2dfd5]">
+                              <th className="py-2.5 px-3 border-r border-[#e2dfd5]">Học sinh & Mức cảnh báo</th>
+                              <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] w-48">Quỹ buổi nghỉ (Trần 45 buổi)</th>
+                              <th className="py-2.5 px-2.5 border-r border-[#e2dfd5]">Nguyên nhân cảnh báo & Môn nguy cơ</th>
+                              <th className="py-2.5 px-2.5 border-r border-[#e2dfd5] w-44">Đà tiến bộ ({selectedSubject})</th>
+                              <th className="py-2.5 px-2.5 text-center w-56">Can thiệp Sư phạm Tức thì</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#ece9df]">
+                            {list.map((item) => {
+                              const { student: stu, riskLevel, reasons, yearCond, totalAbsentSessions, absentQuotaPct, progress } = item;
+                              return (
+                                <tr key={stu.id} className={riskLevel === 'DANGER' ? 'bg-red-50/40' : riskLevel === 'WARNING' ? 'bg-amber-50/30' : 'hover:bg-[#faf9f5]'}>
+                                  <td className="py-2 px-3 border-r border-[#ece9df]">
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                          riskLevel === 'DANGER'
+                                            ? 'bg-red-700 text-white'
+                                            : riskLevel === 'WARNING'
+                                            ? 'bg-[#8f5c38] text-white'
+                                            : 'bg-emerald-700 text-white'
+                                        }`}
+                                      >
+                                        {riskLevel === 'DANGER' ? 'Báo động Đỏ' : riskLevel === 'WARNING' ? 'Cảnh báo Sớm' : 'An toàn'}
+                                      </span>
+                                      <span className="font-bold text-slate-900">{stu.name}</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                      Tổ {stu.team} • Bàn: <strong>{stu.deskSlot || 'Chưa xếp'}</strong> • ĐTB chung: <strong>{item.gpa ?? '--'}</strong>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-2.5 border-r border-[#ece9df]">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold mb-1">
+                                      <span>Nghỉ: {totalAbsentSessions}/45 buổi</span>
+                                      <span className="text-red-700">({yearCond.absentK}K • {yearCond.absentP}P)</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-[#e6e3d8] rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full ${riskLevel === 'DANGER' ? 'bg-red-700' : 'bg-[#8f5c38]'}`}
+                                        style={{ width: `${Math.max(6, absentQuotaPct)}%` }}
+                                      />
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-0.5">
+                                      Đi muộn: {yearCond.late} lần • Rèn luyện: {yearCond.avgConductScore}đ
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-2.5 border-r border-[#ece9df]">
+                                    {reasons.length === 0 ? (
+                                      <span className="text-emerald-700 font-medium">Đủ điều kiện chuyên cần & học lực</span>
+                                    ) : (
+                                      <ul className="list-disc pl-4 space-y-0.5 text-slate-800">
+                                        {reasons.map((r, i) => (
+                                          <li key={i}>{r}</li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2.5 border-r border-[#ece9df]">
+                                    <div className="flex items-end gap-1 h-8 mb-1">
+                                      {progress.stagePoints.map((sp) => (
+                                        <div key={sp.key} className="flex-1 flex flex-col items-center">
+                                          <div
+                                            className={`w-full rounded-t ${
+                                              sp.value === null
+                                                ? 'bg-stone-200 h-1'
+                                                : sp.value >= 8
+                                                ? 'bg-emerald-600'
+                                                : sp.value >= 5
+                                                ? 'bg-[#183c42]'
+                                                : 'bg-red-600'
+                                            }`}
+                                            style={{ height: sp.value !== null ? `${Math.max(20, Math.round(sp.value * 10))}%` : '4px' }}
+                                            title={`${sp.label}: ${sp.value ?? 'Chưa có'}`}
+                                          />
+                                          <span className="text-[9px] text-slate-500">{sp.label}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <div className="flex items-center justify-between text-[10px] font-bold">
+                                      <span
+                                        className={
+                                          progress.trendType === 'UP'
+                                            ? 'text-emerald-700'
+                                            : progress.trendType === 'DOWN'
+                                            ? 'text-red-700'
+                                            : 'text-slate-600'
+                                        }
+                                      >
+                                        {progress.trendLabel}
+                                      </span>
+                                      <span>
+                                        {progress.scoreDelta > 0 ? `+${progress.scoreDelta}đ ▲` : progress.scoreDelta < 0 ? `${progress.scoreDelta}đ ▼` : '0.0đ'}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2 px-2.5 text-center">
+                                    <div className="flex flex-wrap items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleOpenZaloDirect(
+                                            stu,
+                                            `[CẢNH BÁO SỚM HỌC VỤ & CHUYÊN CẦN - ${currentClassObj.name}]
+Kính gửi Phụ huynh em ${stu.name}:
+Qua hệ thống theo dõi Tuần ${selectedWeek}, GVCN xin thông báo tình hình cần lưu ý của em:
+- Chuyên cần: Đã nghỉ ${totalAbsentSessions} buổi (${yearCond.absentK} không phép, ${yearCond.absentP} có phép), đi muộn ${yearCond.late} lần.
+- Học lực & Lưu ý: ${
+                                              reasons.join('; ') || 'Đang theo dõi sát'
+                                            }.
+Kính mong Gia đình phối hợp sát sao cùng GVCN ${teacherName} để hỗ trợ em kịp thời!`
+                                          )
+                                        }
+                                        className="px-2 py-1 bg-[#526d5d] text-white rounded text-[10px] font-semibold"
+                                      >
+                                        Báo Zalo PH
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCustomPairForm((p) => ({ ...p, menteeId: stu.id }));
+                                          setActiveTab('SODO');
+                                          showToast(`Đã chọn ${stu.name} vào khung ghép Đôi bạn cùng tiến trên Sơ đồ bàn!`);
+                                        }}
+                                        className="px-2 py-1 bg-[#183c42] text-white rounded text-[10px] font-semibold"
+                                      >
+                                        Ghép Đôi Bạn
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => triggerPrintPDF(stu, 'INVITATION_SLIP')}
+                                        className="px-2 py-1 bg-[#8f5c38] text-white rounded text-[10px] font-semibold"
+                                      >
+                                        In Giấy Mời
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* KHỐI 2: BẢNG THEO DÕI ĐÀ TIẾN BỘ CÁ NHÂN TOÀN LỚP QUA CÁC ĐỢT KIỂM TRA */}
+                <div className="bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#183c42]">
+                        Biểu Đồ Tiến Bộ Cá Nhân Qua Các Đợt Đánh Giá (TX1 → TX2 → TX3 → TX4 → GK → CK)
+                      </h3>
+                      <p className="text-[11px] text-slate-500">
+                        Theo dõi độ lệch điểm số giữa đầu kỳ và hiện tại kết hợp điểm rèn luyện để khen thưởng học sinh bứt phá hoặc phụ đạo kịp thời.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-700">Môn phân tích tiến bộ:</span>
+                      <select
+                        value={selectedSubject}
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        className="px-3 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-bold text-[#183c42]"
+                      >
+                        {currentSubjects.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleAutoPairAndSeatBuddies();
+                          setActiveTab('SODO');
+                        }}
+                        className="px-3 py-1.5 bg-[#8f5c38] text-white rounded-lg font-bold"
+                      >
+                        🤝 Tự động ghép Đôi bạn cùng tiến & Mở Sơ đồ bàn
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {filteredStudents.map((stu) => {
+                      const prog = analyzeStudentProgress(stu, selectedSubject);
+                      return (
+                        <div key={stu.id} className="p-3 rounded-xl border border-[#e2dfd5] bg-[#faf9f5] flex flex-col justify-between gap-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-slate-900 text-xs">{stu.name}</div>
+                              <div className="text-[10px] text-slate-500">
+                                Tổ {stu.team} • Bàn: <strong>{stu.deskSlot || 'Chưa xếp'}</strong> • Thái độ: {stu.attitude}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                prog.trendType === 'UP'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : prog.trendType === 'DOWN'
+                                  ? 'bg-red-100 text-red-800 border border-red-300'
+                                  : 'bg-stone-200 text-stone-700'
+                              }`}
+                            >
+                              {prog.scoreDelta > 0 ? `+${prog.scoreDelta}đ ▲` : prog.scoreDelta < 0 ? `${prog.scoreDelta}đ ▼` : 'Ổn định'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-6 gap-1 pt-2 pb-1 px-2 bg-white rounded-lg border border-[#ece9df]">
+                            {prog.stagePoints.map((sp) => (
+                              <div key={sp.key} className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-[#183c42] tabular-nums">{sp.value ?? '-'}</span>
+                                <span className="text-[9px] text-slate-400">{sp.label}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#ece9df]">
+                            <span>
+                              ĐTB {selectedSubject}: <strong className="text-[#183c42]">{prog.subjAvg ?? '--'}</strong> • RL: <strong>{prog.weekConductScore}đ</strong>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenZaloDirect(
+                                  stu,
+                                  `[THÔNG BÁO ĐÀ TIẾN BỘ HỌC TẬP MÔN ${selectedSubject.toUpperCase()} - ${currentClassObj.name}]
+Kính gửi Phụ huynh em ${stu.name}:
+Qua theo dõi các cột điểm kiểm tra (${prog.stagePoints
+                                    .filter((p) => p.value !== null)
+                                    .map((p) => `${p.label}: ${p.value}`)
+                                    .join(', ')}), ĐTB hiện tại của em đạt ${prog.subjAvg ?? '--'} (${prog.trendLabel}, chênh lệch ${
+                                    prog.scoreDelta >= 0 ? '+' + prog.scoreDelta : prog.scoreDelta
+                                  }đ so với đầu kỳ). Điểm rèn luyện Tuần ${selectedWeek} đạt ${prog.weekConductScore}/100đ.
+Trân trọng - GV ${teacherName}.`
+                                )
+                              }
+                              className="px-2 py-0.5 bg-[#526d5d] text-white rounded text-[10px] font-semibold"
+                            >
+                              Gửi Zalo PH
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
