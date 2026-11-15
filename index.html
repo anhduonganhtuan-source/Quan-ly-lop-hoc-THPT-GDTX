@@ -28,7 +28,7 @@
     @media print {
       @page {
         size: A4 portrait;
-        margin: 10mm;
+        margin: 6mm 8mm;
       }
       * {
         -webkit-print-color-adjust: exact !important;
@@ -72,6 +72,33 @@
         vertical-align: middle !important;
       }
       .print-table th {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 700 !important;
+      }
+      .print-sheet-onepage {
+        border: 1.5px solid #0f172a !important;
+        padding: 8px 11px !important;
+        background: #ffffff !important;
+        box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+        max-height: 282mm !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+      }
+      .print-table-compact {
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      .print-table-compact th, .print-table-compact td {
+        border: 1px solid #1e293b !important;
+        padding: 2.5px 5px !important;
+        font-size: 10px !important;
+        line-height: 1.22 !important;
+        vertical-align: middle !important;
+      }
+      .print-table-compact th {
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
         font-weight: 700 !important;
@@ -249,16 +276,17 @@
     ];
 
     const INITIAL_ATTENDANCE_TYPES = [
-      { id: 'P', label: 'Vắng có phép', points: -1, badgeClass: 'bg-amber-50 text-amber-800 border-amber-300' },
-      { id: 'K', label: 'Vắng không phép', points: -5, badgeClass: 'bg-red-50 text-red-800 border-red-300' },
-      { id: 'M', label: 'Đi học muộn', points: -2, badgeClass: 'bg-orange-50 text-orange-800 border-orange-300' },
-      { id: 'BT', label: 'Thiếu bài tập', points: -3, badgeClass: 'bg-rose-50 text-rose-800 border-rose-300' },
-      { id: 'TT', label: 'Mất trật tự / Làm việc riêng', points: -2, badgeClass: 'bg-stone-100 text-stone-800 border-stone-300' },
-      { id: 'DD', label: 'Quên đồ dùng học tập', points: -2, badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-300' },
-      { id: 'DP', label: 'Sai đồng phục / Tác phong', points: -2, badgeClass: 'bg-amber-100/70 text-amber-900 border-amber-300' },
-      { id: 'VS', label: 'Trực nhật / Vệ sinh chưa tốt', points: -2, badgeClass: 'bg-stone-200 text-stone-800 border-stone-400' },
-      { id: 'PB', label: 'Phát biểu xây dựng bài (+2đ)', points: 2, badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
-      { id: 'VT', label: 'Việc tốt / Giúp đỡ bạn (+3đ)', points: 3, badgeClass: 'bg-teal-50 text-teal-800 border-teal-300' },
+      { id: 'P', label: 'Vắng có phép', points: -1, equivAbsent: 'P', badgeClass: 'bg-amber-50 text-amber-800 border-amber-300' },
+      { id: 'K', label: 'Vắng không phép', points: -5, equivAbsent: 'K', badgeClass: 'bg-red-50 text-red-800 border-red-300' },
+      { id: 'CT', label: 'Cúp tiết / Bỏ tiết nghiêm trọng (Tính lũy kế = Nghỉ KP)', points: -5, equivAbsent: 'K', badgeClass: 'bg-red-100 text-red-900 border-red-400 font-bold' },
+      { id: 'M', label: 'Đi học muộn (Lặp lại tính nhắc nhở tương đương nghỉ)', points: -2, equivAbsent: 'REPEAT_WARN', badgeClass: 'bg-orange-50 text-orange-800 border-orange-300' },
+      { id: 'BT', label: 'Thiếu bài tập / Không thuộc bài', points: -3, equivAbsent: 'REPEAT_WARN', badgeClass: 'bg-rose-50 text-rose-800 border-rose-300' },
+      { id: 'TT', label: 'Mất trật tự / Làm việc riêng', points: -2, equivAbsent: 'REPEAT_WARN', badgeClass: 'bg-stone-100 text-stone-800 border-stone-300' },
+      { id: 'DD', label: 'Quên đồ dùng học tập', points: -2, equivAbsent: 'REPEAT_WARN', badgeClass: 'bg-yellow-50 text-yellow-800 border-yellow-300' },
+      { id: 'DP', label: 'Sai đồng phục / Tác phong', points: -2, equivAbsent: 'REPEAT_WARN', badgeClass: 'bg-amber-100/70 text-amber-900 border-amber-300' },
+      { id: 'VS', label: 'Trực nhật / Vệ sinh chưa tốt', points: -2, equivAbsent: 'NONE', badgeClass: 'bg-stone-200 text-stone-800 border-stone-400' },
+      { id: 'PB', label: 'Phát biểu xây dựng bài (+2đ)', points: 2, equivAbsent: 'NONE', badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
+      { id: 'VT', label: 'Việc tốt / Giúp đỡ bạn (+3đ)', points: 3, equivAbsent: 'NONE', badgeClass: 'bg-teal-50 text-teal-800 border-teal-300' },
     ];
 
     const getSundayOfDate = (dateObj) => {
@@ -578,7 +606,7 @@
               HS001: { T2_S: ['PB'], T4_S: ['VT'] },
               HS002: { T3_S: ['PB'] },
               HS004: { T5_S: ['M'], T6_C: ['P'] },
-              HS005: { CN_S: ['M'], T2_S: ['K'], T4_C: ['BT', 'TT'], T6_S: ['P'] },
+              HS005: { CN_S: ['M'], T2_S: ['K'], T4_C: ['CT', 'BT'], T6_S: ['P'] },
               HS006: { T3_S: ['P'], T5_S: ['BT'] },
             },
             11: {
@@ -1139,9 +1167,22 @@
       const [archiveByYear, setArchiveByYear] = useState(
         () => initialSaved?.archiveByYear ?? buildDefaultArchive()
       );
-      const [attendanceTypes, setAttendanceTypes] = useState(
-        () => initialSaved?.attendanceTypes ?? INITIAL_ATTENDANCE_TYPES
-      );
+      const [attendanceTypes, setAttendanceTypes] = useState(() => {
+        const savedList = initialSaved?.attendanceTypes;
+        if (!Array.isArray(savedList) || savedList.length === 0) return INITIAL_ATTENDANCE_TYPES;
+        const merged = savedList.map((t) => {
+          const def = INITIAL_ATTENDANCE_TYPES.find((d) => d.id === t.id);
+          return {
+            ...t,
+            equivAbsent: t.equivAbsent || def?.equivAbsent || (t.id === 'K' || t.id === 'CT' ? 'K' : t.id === 'P' ? 'P' : t.points < 0 ? 'REPEAT_WARN' : 'NONE'),
+          };
+        });
+        if (!merged.some((t) => t.id === 'CT')) {
+          const ctDef = INITIAL_ATTENDANCE_TYPES.find((d) => d.id === 'CT');
+          if (ctDef) merged.splice(2, 0, ctDef);
+        }
+        return merged;
+      });
 
       const [seatLayoutConfig, setSeatLayoutConfig] = useState(
         () => initialSaved?.seatLayoutConfig ?? { cols: 4, desksPerCol: 5, seatsPerDesk: 2 }
@@ -1390,7 +1431,7 @@
       const [gradePasteText, setGradePasteText] = useState('');
       const [attendanceModal, setAttendanceModal] = useState(null);
       const [newAttTypeModalOpen, setNewAttTypeModalOpen] = useState(false);
-      const [newAttTypeForm, setNewAttTypeForm] = useState({ id: '', label: '', points: -2 });
+      const [newAttTypeForm, setNewAttTypeForm] = useState({ id: '', label: '', points: -5, equivAbsent: 'K' });
 
       const [printReportTarget, setPrintReportTarget] = useState(null);
       const [printReportType, setPrintReportType] = useState('CONDUCT_WEEKLY');
@@ -2181,8 +2222,11 @@
       const calculateWeeklyConductScore = (stuId, weekNum = selectedWeek) => {
         let score = 100;
         let totalAbsentP = 0;
+        let rawAbsentK = 0;
+        let skipClassCT = 0;
         let totalAbsentK = 0;
         let totalLate = 0;
+        let repeatMinorCount = 0;
         let totalPlus = 0;
         let totalViolations = 0;
         const detailList = [];
@@ -2194,31 +2238,67 @@
               const typeObj = attendanceTypes.find((t) => t.id === code);
               if (typeObj) {
                 score += Number(typeObj.points || 0);
-                if (code === 'P') totalAbsentP += 1;
-                if (code === 'K') totalAbsentK += 1;
+                const eq = typeObj.equivAbsent || (code === 'K' || code === 'CT' ? 'K' : code === 'P' ? 'P' : typeObj.points < 0 ? 'REPEAT_WARN' : 'NONE');
+                if (code === 'P' || eq === 'P') {
+                  totalAbsentP += 1;
+                }
+                if (code === 'K') {
+                  rawAbsentK += 1;
+                  totalAbsentK += 1;
+                } else if (code === 'CT' || eq === 'K') {
+                  skipClassCT += 1;
+                  totalAbsentK += 1; // Cúp tiết nghiêm trọng tính thẳng vào lũy kế Nghỉ Không Phép (K)
+                }
                 if (code === 'M') totalLate += 1;
+                if (eq === 'REPEAT_WARN' || (typeObj.points < 0 && code !== 'P' && code !== 'K' && code !== 'CT')) {
+                  repeatMinorCount += 1;
+                }
                 if (typeObj.points > 0) totalPlus += 1;
-                if (typeObj.points < 0 && code !== 'P') totalViolations += 1;
+                if (typeObj.points < 0 && code !== 'P' && eq !== 'P') totalViolations += 1;
                 if (typeObj.points < 0) {
-                  detailList.push(`${d.label} (${ses.shortLabel}): ${typeObj.label}`);
+                  const tagNote = (code === 'CT' || (eq === 'K' && code !== 'K')) ? ' [Tính lũy kế = Nghỉ KP]' : '';
+                  detailList.push(`${d.label} (${ses.shortLabel}): [${code}] ${typeObj.label}${tagNote}`);
                 }
               }
             });
           });
         });
 
+        // Quy đổi nhắc nhở khi tái phạm lỗi tương đương nghỉ có phép / không phép nhiều lần
+        const convertedAbsentFromRepeats = Math.floor(repeatMinorCount / 2);
+        const equivWarningLabels = [];
+        if (skipClassCT > 0) {
+          equivWarningLabels.push(`🚨 Cúp tiết nghiêm trọng (${skipClassCT} lần → Tính = ${skipClassCT} buổi Nghỉ KP lũy kế)`);
+        }
+        if (rawAbsentK >= 1 && skipClassCT >= 1) {
+          equivWarningLabels.push(`🚨 Tổng lũy kế Nghỉ KP + Cúp tiết: ${totalAbsentK} buổi (${rawAbsentK}K + ${skipClassCT}CT)`);
+        } else if (rawAbsentK >= 2) {
+          equivWarningLabels.push(`🚨 Nghỉ không phép nhiều lần (${rawAbsentK} buổi/tuần)`);
+        }
+        if (totalAbsentP >= 2) {
+          equivWarningLabels.push(`⚠️ Nghỉ có phép nhiều lần (${totalAbsentP} buổi/tuần — Nhắc chép bài)`);
+        }
+        if (repeatMinorCount >= 2) {
+          equivWarningLabels.push(`⚠️ Lỗi tương đương nghỉ KP/CP lặp lại (${repeatMinorCount} lần vi phạm ≈ ${convertedAbsentFromRepeats} buổi nghỉ)`);
+        }
+
         const clamped = Math.max(0, Math.min(120, score));
         let rank = 'Tốt';
         if (clamped < 65 || totalAbsentK >= 2) rank = 'Chưa đạt';
-        else if (clamped < 80) rank = 'Đạt';
-        else if (clamped < 90) rank = 'Khá';
+        else if (clamped < 80 || totalAbsentK === 1 || convertedAbsentFromRepeats >= 2) rank = 'Đạt';
+        else if (clamped < 90 || convertedAbsentFromRepeats === 1) rank = 'Khá';
 
         return {
           score: clamped,
           rank,
           totalAbsentP,
+          rawAbsentK,
+          skipClassCT,
           totalAbsentK,
           totalLate,
+          repeatMinorCount,
+          convertedAbsentFromRepeats,
+          equivWarningLabels,
           totalPlus,
           totalViolations,
           detailList,
@@ -2251,6 +2331,9 @@
         const weeks = weeksOfMonthMap[targetMonth] || [9, 10, 11, 12];
         let absentP = 0;
         let absentK = 0;
+        let rawAbsentK = 0;
+        let skipClassCT = 0;
+        let repeatMinorCount = 0;
         let lateM = 0;
         let plusCount = 0;
         let violationCount = 0;
@@ -2263,6 +2346,9 @@
           const wInfo = weekDatesMap[wNum] || {};
           absentP += wStat.totalAbsentP;
           absentK += wStat.totalAbsentK;
+          rawAbsentK += (wStat.rawAbsentK || 0);
+          skipClassCT += (wStat.skipClassCT || 0);
+          repeatMinorCount += (wStat.repeatMinorCount || 0);
           lateM += wStat.totalLate;
           plusCount += wStat.totalPlus;
           violationCount += wStat.totalViolations;
@@ -2300,6 +2386,10 @@
           weeks,
           absentP,
           absentK,
+          rawAbsentK,
+          skipClassCT,
+          repeatMinorCount,
+          convertedAbsentFromRepeats: Math.floor(repeatMinorCount / 3),
           totalAbsent,
           lateM,
           plusCount,
@@ -3080,7 +3170,37 @@
                 : `Trân trọng cảm ơn Quý Phụ huynh đã đồng hành cùng GVCN ${teacherName}!`,
             ].join('\n');
 
-          case 'WEEKLY_REPORT':
+          case 'WEEKLY_REPORT': {
+            const lowSubjs = currentSubjects
+              .map((subj) => {
+                const scObj = getStudentSubjectScoreObj(stu.id, subj, semester);
+                const avg = calculateSubjectAverage(scObj);
+                const lowCols = ['tx1', 'tx2', 'tx3', 'tx4', 'gk', 'ck']
+                  .filter((k) => scObj[k] !== '' && scObj[k] !== undefined && !isNaN(parseFloat(scObj[k])) && parseFloat(scObj[k]) < 6.0)
+                  .map((k) => `${k.toUpperCase()}:${scObj[k]}`);
+                if ((avg !== null && avg < 6.5) || lowCols.length > 0) {
+                  return `${subj} (ĐTB: ${avg ?? '--'}${lowCols.length ? ', Cột điểm thấp: ' + lowCols.join(', ') : ''})`;
+                }
+                return null;
+              })
+              .filter(Boolean);
+            const equivTxt = (weekCond.equivWarningLabels || []).join(' | ');
+            return [
+              `[PHIẾU BÁO CÁO & NHẮC NHỞ TUẦN ${selectedWeek} ${weekRangeTxt} - ${currentClassObj.name.toUpperCase()}]`,
+              `Kính gửi Quý Phụ huynh em ${stu.name} (NS: ${stu.dob || '—'} • Nghề đang học: ${stu.vocational || 'Chỉ học Văn hóa'}):`,
+              `1. Điểm rèn luyện Tuần ${selectedWeek}: ${weekCond.score}/100đ (Xếp loại: ${weekCond.rank}). Lũy kế Nghỉ KP + Cúp tiết trong tuần: ${weekCond.totalAbsentK} buổi (Vắng KP: ${weekCond.rawAbsentK || 0}, Cúp tiết: ${weekCond.skipClassCT || 0}) | Nghỉ có phép: ${weekCond.totalAbsentP} buổi | Đi muộn: ${weekCond.totalLate} lần.`,
+              weekViolations.length === 0
+                ? `2. Chi tiết từng ngày: Em đi học đầy đủ, đúng giờ tất cả các buổi, không có vi phạm nội quy.`
+                : `2. Các lỗi cụ thể trong tuần: ${weekViolations.join('; ')}.`,
+              equivTxt ? `3. Nhãn cảnh báo lũy kế: ${equivTxt}.` : null,
+              lowSubjs.length > 0 || weekCond.score < 90
+                ? `4. NHẮC NHỞ HỌC SINH ĐIỂM THẤP TRONG TUẦN: ${weekCond.score < 90 ? `Điểm rèn luyện tuần thấp (${weekCond.score}đ). ` : ''}${lowSubjs.length > 0 ? `Các môn có điểm kiểm tra/ĐTB thấp cần ôn tập gấp: ${lowSubjs.join('; ')}.` : 'Cần chấn chỉnh nề nếp chuyên cần.'} Kính mong Gia đình sát sao nhắc nhở em!`
+                : `4. Kết quả học tập (ĐTB chung: ${gpa ?? '--'}): Em duy trì phong độ tốt, kính mong Gia đình tiếp tục động viên em phát huy!`,
+              `Trân trọng cảm ơn Gia đình đã phối hợp cùng GVCN ${teacherName}!`,
+            ].filter(Boolean).join('\n');
+          }
+
+          case 'OLD_WEEKLY_REPORT_UNUSED':
             return [
               `Kính gửi Quý Phụ huynh em ${stu.name} (${currentClassObj.name} - ${schoolName}):`,
               `Thầy/Cô xin gửi báo cáo Tuần ${selectedWeek} ${weekRangeTxt}:`,
@@ -3792,6 +3912,101 @@
         showToast(`Đã xuất file Excel/CSV lớp ${activeClass}!`);
       };
 
+            // PHÂN TÍCH & NHẮC NHỞ ĐỐI TƯỢNG HỌC SINH ĐIỂM THẤP TRONG TUẦN (ĐIỂM RÈN LUYỆN THẤP + ĐIỂM HỌC TẬP THẤP + LỖI TƯƠNG ĐƯƠNG NGHỈ KP/CP NHIỀU LẦN)
+      const getStudentLowScoreReminder = useCallback((stu, weekNum = selectedWeek) => {
+        const wCond = calculateWeeklyConductScore(stu.id, weekNum);
+        const mCond = calculateMonthlyConductSummary(stu.id, selectedReportMonth);
+        const yCond = calculateYearAttendanceSummary(stu.id);
+        const gpaSem = getStudentOverallGPA(stu.id, 'SEMESTER');
+
+        const lowAcademicSubjects = [];
+        currentSubjects.forEach((subj) => {
+          const scObj = getStudentSubjectScoreObj(stu.id, subj, semester);
+          const avg = calculateSubjectAverage(scObj);
+          const lowCols = ['tx1', 'tx2', 'tx3', 'tx4', 'gk', 'ck']
+            .filter((k) => scObj[k] !== '' && scObj[k] !== undefined && !isNaN(parseFloat(scObj[k])) && parseFloat(scObj[k]) < 6.0)
+            .map((k) => `${k.toUpperCase()}: ${scObj[k]}đ`);
+          if ((avg !== null && avg < 6.5) || lowCols.length > 0) {
+            lowAcademicSubjects.push({
+              subject: subj,
+              avg,
+              lowCols,
+              summary: `${subj} (ĐTB: ${avg ?? '--'}${lowCols.length ? ' • Cột thấp: ' + lowCols.join(', ') : ''})`,
+            });
+          }
+        });
+
+        const isLowConductWeek = wCond.score < 95 || wCond.totalAbsentK > 0 || wCond.totalAbsentP >= 2 || wCond.repeatMinorCount >= 2;
+        const isLowAcademic = lowAcademicSubjects.length > 0 || (gpaSem !== null && gpaSem < 6.5);
+        const needsWeeklyReminder = isLowConductWeek || isLowAcademic;
+
+        // Nhãn lỗi tương đương nghỉ có phép / không phép nhiều lần (tính cả tuần & tháng)
+        const equivLabels = [...(wCond.equivWarningLabels || [])];
+        if ((mCond.skipClassCT || 0) > 0 && !equivLabels.some((x) => x.includes('Cúp tiết'))) {
+          equivLabels.push(`🚨 Cúp tiết Tháng ${selectedReportMonth}: ${mCond.skipClassCT} lần (Đã cộng vào lũy kế Nghỉ KP)`);
+        }
+        if (mCond.absentK >= 2 && !equivLabels.some((x) => x.includes('Nghỉ không phép nhiều lần'))) {
+          equivLabels.push(`🚨 Lũy kế Nghỉ KP + Cúp tiết Tháng ${selectedReportMonth}: ${mCond.absentK} buổi`);
+        }
+        if (mCond.absentP >= 2 && !equivLabels.some((x) => x.includes('Nghỉ có phép nhiều lần'))) {
+          equivLabels.push(`⚠️ Nghỉ có phép nhiều lần trong Tháng ${selectedReportMonth}: ${mCond.absentP} buổi`);
+        }
+        if ((mCond.repeatMinorCount || 0) >= 3 && !equivLabels.some((x) => x.includes('lặp lại'))) {
+          equivLabels.push(`⚠️ Vi phạm lặp lại nhiều lần (${mCond.repeatMinorCount} lượt ≈ ${mCond.convertedAbsentFromRepeats} buổi nghỉ quy đổi)`);
+        }
+
+        const reminderReasons = [];
+        if (wCond.score < 95) {
+          reminderReasons.push(`Điểm rèn luyện Tuần ${weekNum} thấp (${wCond.score}/100đ - ${wCond.rank})`);
+        }
+        if (wCond.skipClassCT > 0) {
+          reminderReasons.push(`Vi phạm Cúp tiết nghiêm trọng (${wCond.skipClassCT} lần → Tính = ${wCond.skipClassCT} buổi Nghỉ KP lũy kế)`);
+        }
+        if (wCond.rawAbsentK > 0) {
+          reminderReasons.push(`Nghỉ học không phép (${wCond.rawAbsentK} buổi)`);
+        }
+        if (wCond.totalAbsentP >= 2) {
+          reminderReasons.push(`Nghỉ có phép nhiều lần (${wCond.totalAbsentP} buổi/tuần)`);
+        }
+        if (wCond.repeatMinorCount >= 2) {
+          reminderReasons.push(`Tái phạm lỗi nội quy/đi muộn nhiều lần (${wCond.repeatMinorCount} lượt ≈ ${wCond.convertedAbsentFromRepeats} buổi nghỉ)`);
+        }
+        if (lowAcademicSubjects.length > 0) {
+          reminderReasons.push(`Điểm học tập thấp cần củng cố: ${lowAcademicSubjects.map((x) => x.summary).join('; ')}`);
+        }
+
+        let reminderAdvice = '';
+        if (needsWeeklyReminder) {
+          const parts = [];
+          parts.push(`NHẮC NHỞ ĐỐI TƯỢNG ĐIỂM THẤP / VI PHẠM TUẦN ${weekNum}: Em ${stu.name} (NS: ${stu.dob || '—'}, Nghề: ${stu.vocational || 'Chỉ học Văn hóa'}) hiện có: ${reminderReasons.join(' | ')}.`);
+          if (wCond.skipClassCT > 0 || wCond.rawAbsentK > 0) {
+            parts.push(`Lưu ý lỗi Cúp tiết [CT] được tính nghiêm trọng tương đương Nghỉ không phép [K] vào tổng lũy kế (${yCond.absentK + yCond.absentP}/45 buổi năm học).`);
+          }
+          if (lowAcademicSubjects.length > 0) {
+            parts.push(`Đề nghị em ôn tập ngay các môn điểm thấp (${lowAcademicSubjects.map((x) => x.subject).join(', ')}), hoàn thành bài tập về nhà và trao đổi với bạn kèm cặp trên lớp.`);
+          } else {
+            parts.push('Đề nghị Gia đình phối hợp nhắc nhở em đi học đúng giờ, không cúp tiết hoặc nghỉ học tự do.');
+          }
+          reminderAdvice = parts.join(' ');
+        } else {
+          reminderAdvice = `BIỂU DƯƠNG TUẦN ${weekNum}: Em ${stu.name} (NS: ${stu.dob || '—'}, Nghề: ${stu.vocational || 'Chỉ học Văn hóa'}) đi học chuyên cần đầy đủ 100% các buổi, không có vi phạm nội quy, điểm rèn luyện đạt ${wCond.score}/100đ (${wCond.rank}) và duy trì kết quả học tập tốt (ĐTB: ${gpaSem ?? '--'}). Đề nghị gia đình tiếp tục khen ngợi, khích lệ em phát huy!`;
+        }
+
+        return {
+          wCond,
+          mCond,
+          yCond,
+          gpaSem,
+          lowAcademicSubjects,
+          isLowConductWeek,
+          isLowAcademic,
+          needsWeeklyReminder,
+          equivLabels,
+          reminderReasons,
+          reminderAdvice,
+        };
+      }, [selectedWeek, selectedReportMonth, currentSubjects, grades, activeClass, semester, attendance, attendanceTypes]);
+
       // TẠO BẢNG CHI TIẾT 7 NGÀY TRONG TUẦN (CN -> T7) GHI RÕ LỖI CỤ THỂ & NHẬN XÉT TỪNG NGÀY CHO PHIẾU IN TUẦN
       const buildWeeklyDayRowsForStudent = useCallback((stu, weekNum = selectedWeek) => {
         const wInfo = weekDatesMap[weekNum] || buildDefaultWeekDates(schoolYear)[weekNum] || {};
@@ -3826,12 +4041,15 @@
           const dayDelta = allItems.reduce((sum, item) => sum + item.points, 0);
           const negItems = allItems.filter((x) => x.points < 0);
           const posItems = allItems.filter((x) => x.points > 0);
-          const hasUnexcused = allItems.some((x) => x.id === 'K');
+          const hasSkipClass = allItems.some((x) => x.id === 'CT');
+          const hasUnexcused = allItems.some((x) => x.id === 'K' || x.id === 'CT');
           const hasExcused = allItems.some((x) => x.id === 'P');
 
           let dayComment = 'Đi học đầy đủ, đúng giờ; chấp hành tốt nội quy lớp học.';
           if (negItems.length > 0 && posItems.length > 0) {
             dayComment = `Vi phạm: ${negItems.map((x) => `${x.label} (${x.sessionLabel})`).join(', ')}; có cố gắng: ${posItems.map((x) => x.label).join(', ')}.`;
+          } else if (hasSkipClass) {
+            dayComment = '🚨 Cúp tiết / Bỏ tiết nghiêm trọng (Đã tính +1 buổi vào lũy kế Nghỉ KP) — Cần thông báo Phụ huynh chấn chỉnh ngay.';
           } else if (hasUnexcused) {
             const otherNeg = negItems.filter((x) => x.id !== 'K').map((x) => `${x.label} (${x.sessionLabel})`);
             dayComment = `Nghỉ học không phép${otherNeg.length ? ' & ' + otherNeg.join(', ') : ''} — Cần Phụ huynh xác nhận lý do & chấn chỉnh ngay.`;
@@ -3881,15 +4099,18 @@
           'Tổ',
           'Nghề đang học / Chuyên ngành',
           ...dayHeaders,
-          `Vắng Không phép Tuần ${selectedWeek} (K)`,
+          `Lũy kế Nghỉ KP + Cúp tiết Tuần ${selectedWeek} (K+CT)`,
+          `Trong đó: Cúp tiết nghiêm trọng (CT)`,
           `Vắng Có phép Tuần ${selectedWeek} (P)`,
           `Đi học muộn Tuần ${selectedWeek} (M)`,
           'Lượt vi phạm nội quy khác',
           'Lượt cộng điểm (+)',
           `Tổng Điểm Rèn luyện Tuần ${selectedWeek}`,
           `Xếp loại Tuần ${selectedWeek}`,
+          'Nhãn cảnh báo lỗi tương đương nghỉ KP/CP nhiều lần',
+          'Môn học điểm thấp cần nhắc nhở',
           'Chi tiết các lỗi cụ thể từng ngày trong tuần',
-          'Nhận xét & Đánh giá của Giáo viên',
+          'Nhắc nhở đối tượng điểm thấp & Nhận xét của Giáo viên',
         ];
 
         const rows = currentStudents.map((stu, idx) => {
@@ -3902,15 +4123,14 @@
             const deltaTxt = dr.dayDelta > 0 ? `+${dr.dayDelta}đ` : `${dr.dayDelta}đ`;
             return `"${sTxt} | ${cTxt} [${deltaTxt}] -> ${dr.dayComment.replace(/"/g, '""')}"`;
           });
+          const remInfo = getStudentLowScoreReminder(stu, selectedWeek);
           const specificViolationsTxt =
             wCond.detailList.length === 0
-              ? 'Chấp hành tốt nội quy, không có vi phạm'
+              ? '0 vi phạm (Đi học đầy đủ, chấp hành tốt nội quy)'
               : wCond.detailList.join('; ');
-          const autoWeeklyComment =
-            stu.gvcnComment ||
-            (wCond.totalAbsentK > 0 || wCond.totalViolations > 0
-              ? `Em ${stu.name} (NS: ${stu.dob || '—'}, Nghề đang học: ${stu.vocational || 'Chỉ học Văn hóa'}) trong Tuần ${selectedWeek} phát sinh lỗi: ${specificViolationsTxt}. Đề nghị gia đình nhắc nhở em chấn chỉnh nề nếp.`
-              : `Em ${stu.name} (NS: ${stu.dob || '—'}, Nghề đang học: ${stu.vocational || 'Chỉ học Văn hóa'}) đi học chuyên cần đầy đủ, chấp hành tốt nội quy lớp học trong Tuần ${selectedWeek}.`);
+          const equivTagsTxt = remInfo.equivLabels.length > 0 ? remInfo.equivLabels.join(' | ') : 'Bình thường';
+          const lowSubjTxt = remInfo.lowAcademicSubjects.length > 0 ? remInfo.lowAcademicSubjects.map((x) => x.summary).join('; ') : 'Đạt yêu cầu';
+          const autoWeeklyComment = stu.gvcnComment || remInfo.reminderAdvice;
           return [
             idx + 1,
             `'${stu.moetId || ''}`,
@@ -3921,12 +4141,15 @@
             `"${stu.vocational || 'Chỉ học Văn hóa'}"`,
             ...dayCells,
             wCond.totalAbsentK,
+            wCond.skipClassCT || 0,
             wCond.totalAbsentP,
             wCond.totalLate,
             Math.max(0, wCond.totalViolations - wCond.totalAbsentK - wCond.totalLate),
             wCond.totalPlus,
             wCond.score,
             `"${wCond.rank}"`,
+            `"${equivTagsTxt.replace(/"/g, '""')}"`,
+            `"${lowSubjTxt.replace(/"/g, '""')}"`,
             `"${specificViolationsTxt.replace(/"/g, '""')}"`,
             `"${autoWeeklyComment.replace(/"/g, '""')}"`,
           ].join(',');
@@ -4575,7 +4798,7 @@
                         );
                       }))))))
             )), (activeTab === 'CHUYENCAN' && (
-              React.createElement("div", Object.assign({}, {"className": "space-y-4"}), React.createElement("div", Object.assign({}, {"className": "bg-white p-4 rounded-xl border border-[#e2dfd5] space-y-3"}), React.createElement("div", Object.assign({}, {"className": "flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 border-b border-[#ece9df] pb-3"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#efeee6] text-[#183c42] text-[11px] font-bold"}), "MỤC 02"), React.createElement("h2", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sổ Chuyên Cần Tuần ", (selectedWeek), " (CN ", (formatVNShortDate(currentWeekInfo?.startSunday)), " → T7 ", (formatVNShortDate(currentWeekInfo?.endSaturday)), ") & Thống Kê Vi Phạm Tháng ", (selectedReportMonth))), React.createElement("p", Object.assign({}, {"className": "text-xs text-slate-500 mt-0.5"}), "Bấm vào từng ô Sáng / Chiều để chấm mã vi phạm hoặc điểm cộng. Hệ thống tự động cộng dồn vào ", React.createElement("strong", null, "Biểu đồ & Phiếu Vi Phạm Tháng ", (selectedReportMonth)), ".")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-2 text-xs"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (syncWeekToToday)}, {"className": "px-3 py-1.5 bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] border border-[#d6d2c4] rounded-lg font-semibold"}), "Đồng bộ ngày hôm nay"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setNewAttTypeModalOpen(true))}, {"className": "px-3 py-1.5 bg-[#f6f5ef] hover:bg-[#ebe8dc] text-[#183c42] border border-[#dcd8cb] rounded-lg font-semibold"}), "+ Tiêu chí lỗi/khen"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (clearWeekAttendance)}, {"className": "px-3 py-1.5 bg-white hover:bg-stone-50 text-slate-700 border border-[#dcd8cb] rounded-lg font-semibold"}), "Đặt 100% Có mặt đủ"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('VIOLATORS_WEEKLY', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-bold shadow-sm"}, {"title": "In Phiếu Vi Phạm Tuần theo bảng từng ngày cho các học sinh có vi phạm trong tuần"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In Phiếu Vi Phạm Tuần ", (selectedWeek), " (HS Vi Phạm)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('ALL', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-semibold"}, {"title": "In Phiếu Chuyên Cần & Vi Phạm Tuần theo bảng từng ngày cho toàn bộ lớp"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In Phiếu Tuần Cả Lớp (PDF)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleExportWeeklyViolationCSV)}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] border border-[#d6d2c4] rounded-lg font-bold"}, {"title": "Xuất bảng tổng hợp vi phạm từng ngày trong tuần (kèm Họ tên, Ngày sinh, Nghề đang học) ra file Excel .CSV"}), React.createElement(Download, Object.assign({}, {"className": "w-3.5 h-3.5 text-[#8f5c38]"})), "Xuất Excel Tuần ", (selectedWeek), " (.CSV)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('VIOLATORS_MONTHLY', 'CONDUCT_MONTHLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg font-bold shadow-sm"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "Xuất Phiếu Vi Phạm Tháng ", (selectedReportMonth), " (PDF)"))), React.createElement("div", Object.assign({}, {"className": "flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5"}), (attendanceTypes.map((t) => (
+              React.createElement("div", Object.assign({}, {"className": "space-y-4"}), React.createElement("div", Object.assign({}, {"className": "bg-white p-4 rounded-xl border border-[#e2dfd5] space-y-3"}), React.createElement("div", Object.assign({}, {"className": "flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 border-b border-[#ece9df] pb-3"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#efeee6] text-[#183c42] text-[11px] font-bold"}), "MỤC 02"), React.createElement("h2", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sổ Chuyên Cần Tuần ", (selectedWeek), " (CN ", (formatVNShortDate(currentWeekInfo?.startSunday)), " → T7 ", (formatVNShortDate(currentWeekInfo?.endSaturday)), ") & Thống Kê Vi Phạm Tháng ", (selectedReportMonth))), React.createElement("p", Object.assign({}, {"className": "text-xs text-slate-500 mt-0.5"}), "Bấm vào từng ô Sáng / Chiều để chấm mã vi phạm hoặc điểm cộng. Hệ thống tự động cộng dồn vào ", React.createElement("strong", null, "Biểu đồ & Phiếu Vi Phạm Tháng ", (selectedReportMonth)), ".")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-2 text-xs"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (syncWeekToToday)}, {"className": "px-3 py-1.5 bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] border border-[#d6d2c4] rounded-lg font-semibold"}), "Đồng bộ ngày hôm nay"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setNewAttTypeModalOpen(true))}, {"className": "px-3 py-1.5 bg-[#f6f5ef] hover:bg-[#ebe8dc] text-[#183c42] border border-[#dcd8cb] rounded-lg font-semibold"}), "+ Tiêu chí lỗi/khen"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (clearWeekAttendance)}, {"className": "px-3 py-1.5 bg-white hover:bg-stone-50 text-slate-700 border border-[#dcd8cb] rounded-lg font-semibold"}), "Đặt 100% Có mặt đủ"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('VIOLATORS_WEEKLY', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-bold shadow-sm"}, {"title": "In Phiếu Vi Phạm Tuần theo bảng từng ngày cho các học sinh có vi phạm trong tuần"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In Phiếu Vi Phạm Tuần ", (selectedWeek), " (HS Vi Phạm)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('ALL', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-semibold"}, {"title": "In Phiếu Chuyên Cần & Vi Phạm Tuần theo bảng từng ngày cho toàn bộ lớp"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In Báo Cáo Tuần Cả Lớp (Gồm cả HS không vi phạm • 1 HS/1 trang)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleExportWeeklyViolationCSV)}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#efeee6] hover:bg-[#e2dfd5] text-[#183c42] border border-[#d6d2c4] rounded-lg font-bold"}, {"title": "Xuất bảng tổng hợp vi phạm từng ngày trong tuần (kèm Họ tên, Ngày sinh, Nghề đang học) ra file Excel .CSV"}), React.createElement(Download, Object.assign({}, {"className": "w-3.5 h-3.5 text-[#8f5c38]"})), "Xuất Excel Tuần ", (selectedWeek), " (.CSV)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('VIOLATORS_MONTHLY', 'CONDUCT_MONTHLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-lg font-bold shadow-sm"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "Xuất Phiếu Vi Phạm Tháng ", (selectedReportMonth), " (PDF)"))), React.createElement("div", Object.assign({}, {"className": "flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5"}), (attendanceTypes.map((t) => (
                         React.createElement("span", Object.assign({}, {"key": (t.id)}, {"className": (`px-2 py-0.5 rounded border text-[11px] font-semibold ${t.badgeClass || 'bg-stone-100 text-stone-800 border-stone-300'}`)}), "[", (t.id), "] ", (t.label), " (", (t.points > 0 ? `+${t.points}` : t.points), "đ)")
                       )))), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5 bg-[#f6f5ef] p-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-bold text-[#183c42]"}), "Chấm nhanh theo Tổ:"), React.createElement("select", Object.assign({}, {"value": (batchTeam)}, {"onChange": ((e) => setBatchTeam(Number(e.target.value)))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), ([1, 2, 3, 4].map((t) => React.createElement("option", Object.assign({}, {"key": (t)}, {"value": (t)}), "Tổ ", (t))))), React.createElement("select", Object.assign({}, {"value": (batchDayKey)}, {"onChange": ((e) => setBatchDayKey(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), (DAYS_OF_WEEK.map((d) => React.createElement("option", Object.assign({}, {"key": (d.key)}, {"value": (d.key)}), (d.label))))), React.createElement("select", Object.assign({}, {"value": (batchSessionKey)}, {"onChange": ((e) => setBatchSessionKey(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), React.createElement("option", Object.assign({}, {"value": "S"}), "Sáng"), React.createElement("option", Object.assign({}, {"value": "C"}), "Chiều")), React.createElement("select", Object.assign({}, {"value": (batchCodeId)}, {"onChange": ((e) => setBatchCodeId(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-bold text-[#183c42]"}), (attendanceTypes.map((t) => (
                           React.createElement("option", Object.assign({}, {"key": (t.id)}, {"value": (t.id)}), "[", (t.id), "] ", (t.label))
@@ -4585,7 +4808,18 @@
                         const wCond = calculateWeeklyConductScore(stu.id, selectedWeek);
                         const mCond = calculateMonthlyConductSummary(stu.id, selectedReportMonth);
                         return (
-                          React.createElement("tr", Object.assign({}, {"key": (stu.id)}, {"className": "hover:bg-[#faf9f5]"}), React.createElement("td", Object.assign({}, {"className": "py-2 px-2.5 border-r border-[#ece9df]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-slate-900"}), (stu.name)), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-slate-500"}), "Tổ ", (stu.team), " • NS: ", (stu.dob), " • SĐT PH: ", (stu.parentPhone || '--'))), (currentWeekDaysWithDates.map((d) => {
+                          React.createElement("tr", Object.assign({}, {"key": (stu.id)}, {"className": "hover:bg-[#faf9f5]"}), React.createElement("td", Object.assign({}, {"className": "py-2 px-2.5 border-r border-[#ece9df]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-slate-900 flex flex-wrap items-center gap-1"}), React.createElement("span", null, (stu.name)), (wCond.skipClassCT > 0 && (
+                                  React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-red-700 text-white text-[9px] font-bold"}), "🚨 Cúp tiết (", (wCond.skipClassCT), " = Nghỉ KP)")
+                                ))), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-slate-500"}), "Tổ ", (stu.team), " • NS: ", (stu.dob), " • Nghề: ", React.createElement("strong", null, (stu.vocational || 'Văn hóa'))), ((() => {
+                                const rem = getStudentLowScoreReminder(stu, selectedWeek);
+                                return (
+                                  React.createElement("div", Object.assign({}, {"className": "flex flex-wrap gap-1 mt-1"}), (rem.equivLabels.map((lbl, lIdx) => (
+                                      React.createElement("span", Object.assign({}, {"key": (lIdx)}, {"className": "px-1.5 py-0.2 rounded bg-amber-100 border border-amber-300 text-[#8f5c38] text-[9px] font-bold"}), (lbl))
+                                    ))), (rem.lowAcademicSubjects.length > 0 && (
+                                      React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-rose-50 border border-rose-300 text-rose-800 text-[9px] font-bold"}), "📉 Điểm thấp: ", (rem.lowAcademicSubjects.map((x) => `${x.subject} (${x.avg ?? '--'})`).join(', ')))
+                                    )))
+                                );
+                              })())), (currentWeekDaysWithDates.map((d) => {
                               const sCodes = getStudentDaySessionCodes(stu.id, d.key, 'S', selectedWeek);
                               const cCodes = getStudentDaySessionCodes(stu.id, d.key, 'C', selectedWeek);
                               return (
@@ -4609,9 +4843,32 @@
                                       );
                                     }))))
                               );
-                            })), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-[#faf9f5]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-sm text-[#183c42]"}), (wCond.score), "đ"), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-semibold text-slate-600"}), (wCond.rank))), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-red-50/20"}), React.createElement("div", Object.assign({}, {"className": (`font-bold text-xs ${mCond.isExcessiveAbsence ? 'text-red-700' : 'text-[#183c42]'}`)}), (mCond.avgScore), "đ (", (mCond.monthRank), ")"), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-slate-600"}), "Vắng: ", React.createElement("strong", null, (mCond.absentK), "K • ", (mCond.absentP), "P"), " | Lỗi: ", (mCond.violationCount))), React.createElement("td", Object.assign({}, {"className": "py-1.5 px-2 text-center space-y-1"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF(stu, 'CONDUCT_MONTHLY'))}, {"className": "w-full px-2 py-1 bg-red-700 hover:bg-red-800 text-white rounded text-[10px] font-bold"}), "Phiếu Tháng ", (selectedReportMonth)), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF(stu, 'CONDUCT_WEEKLY'))}, {"className": "w-full px-2 py-1 bg-[#183c42] hover:bg-[#234f57] text-white rounded text-[10px] font-semibold"}), "Phiếu Tuần ", (selectedWeek))))
+                            })), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-[#faf9f5]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-sm text-[#183c42]"}), (wCond.score), "đ"), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-semibold text-slate-600"}), (wCond.rank))), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-red-50/20"}), React.createElement("div", Object.assign({}, {"className": (`font-bold text-xs ${mCond.isExcessiveAbsence ? 'text-red-700' : 'text-[#183c42]'}`)}), (mCond.avgScore), "đ (", (mCond.monthRank), ")"), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-slate-600"}), "Lũy kế KP+CT: ", React.createElement("strong", Object.assign({}, {"className": "text-red-700"}), (mCond.absentK), " buổi"), " (", (mCond.rawAbsentK || 0), "K", (mCond.skipClassCT ? ` + ${mCond.skipClassCT}CT` : ''), ") • ", (mCond.absentP), "P"), (wCond.convertedAbsentFromRepeats > 0 && (
+                                React.createElement("div", Object.assign({}, {"className": "text-[9px] font-bold text-[#8f5c38] mt-0.5"}), "⚠️ Lặp lỗi ≈ ", (wCond.convertedAbsentFromRepeats), " buổi nghỉ")
+                              ))), React.createElement("td", Object.assign({}, {"className": "py-1.5 px-2 text-center space-y-1"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF(stu, 'CONDUCT_MONTHLY'))}, {"className": "w-full px-2 py-1 bg-red-700 hover:bg-red-800 text-white rounded text-[10px] font-bold"}), "Phiếu Tháng ", (selectedReportMonth)), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF(stu, 'CONDUCT_WEEKLY'))}, {"className": "w-full px-2 py-1 bg-[#183c42] hover:bg-[#234f57] text-white rounded text-[10px] font-semibold"}), "Phiếu Tuần ", (selectedWeek))))
                         );
-                      }))))), (showViolationChartInTab2 && renderViolationChartWidget()))
+                      }))))), ((() => {
+                  const reminderStudents = filteredStudents
+                    .map((s) => ({ student: s, info: getStudentLowScoreReminder(s, selectedWeek) }))
+                    .filter((x) => x.info.needsWeeklyReminder);
+                  return (
+                    React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-red-700 text-white text-[10px] font-bold uppercase"}), "Nhắc Nhở Trọng Tâm Tuần ", (selectedWeek)), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Danh Sách Nhắc Nhở Học Sinh Điểm Thấp Trong Tuần & Lỗi Tương Đương Nghỉ KP/CP Nhiều Lần (", (reminderStudents.length), " HS cần nhắc)")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Tự động rà soát các học sinh có ", React.createElement("strong", null, "Điểm rèn luyện tuần thấp (&lt;95đ)"), ", ", React.createElement("strong", null, "Điểm kiểm tra / ĐTB môn thấp (&lt;6.5)"), ", ", React.createElement("strong", null, "Cúp tiết [CT] (tính thẳng vào lũy kế Nghỉ KP)"), " hoặc ", React.createElement("strong", null, "Tái phạm lỗi tương đương nghỉ có phép/không phép nhiều lần"), " để GVCN nhắc nhở kịp thời.")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('ALL', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-bold shadow-sm"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In Báo Cáo Tuần Cả Lớp (", (rosterStudents.length), " HS • 1 HS/1 Trang A4)"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF('VIOLATORS_WEEKLY', 'CONDUCT_WEEKLY'))}, {"className": "flex items-center gap-1 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-semibold"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "Chỉ In Nhóm Vi Phạm (", (reminderStudents.length), " HS)"))), (reminderStudents.length === 0 ? (
+                        React.createElement("div", Object.assign({}, {"className": "p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 font-semibold"}), "✓ Tuyệt vời! Trong Tuần ", (selectedWeek), ", không có học sinh nào bị điểm thấp hoặc vi phạm cúp tiết / nghỉ học nhiều lần.")
+                      ) : (
+                        React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 md:grid-cols-2 gap-2.5"}), (reminderStudents.map(({ student: stu, info }) => (
+                            React.createElement("div", Object.assign({}, {"key": (stu.id)}, {"className": "p-3 rounded-xl border border-amber-300 bg-amber-50/40 flex flex-col justify-between gap-2"}), React.createElement("div", Object.assign({}, {"className": "space-y-1"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-1.5"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-slate-900 text-xs"}), (stu.name), (' '), React.createElement("span", Object.assign({}, {"className": "text-[11px] font-normal text-slate-600"}), "(NS: ", (stu.dob), " • Nghề: ", React.createElement("strong", null, (stu.vocational || 'Chỉ học Văn hóa')), ")")), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-red-700 text-white text-[10px] font-bold"}), "RL Tuần: ", (info.wCond.score), "đ (", (info.wCond.rank), ") • ĐTB: ", (info.gpaSem ?? '--'))), (info.equivLabels.length > 0 && (
+                                  React.createElement("div", Object.assign({}, {"className": "flex flex-wrap gap-1 pt-0.5"}), (info.equivLabels.map((lbl, idx) => (
+                                      React.createElement("span", Object.assign({}, {"key": (idx)}, {"className": "px-2 py-0.5 rounded bg-white border border-red-300 text-red-800 text-[10px] font-bold"}), (lbl))
+                                    ))))
+                                )), (info.lowAcademicSubjects.length > 0 && (
+                                  React.createElement("div", Object.assign({}, {"className": "text-[11px] text-rose-800 font-semibold"}), "📉 Môn điểm thấp cần nhắc ôn tập: ", (info.lowAcademicSubjects.map((x) => x.summary).join(' • ')))
+                                )), React.createElement("div", Object.assign({}, {"className": "text-[11px] text-slate-700 bg-white/80 p-2 rounded border border-amber-200 leading-relaxed"}), React.createElement("strong", null, "Nội dung nhắc nhở:"), " ", (info.reminderAdvice))), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-end gap-1.5 pt-1 border-t border-amber-200/70"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() =>
+                                    handleOpenZaloDirect(stu, buildSmartZaloTemplate(stu, 'WEEKLY_REPORT'))
+                                  )}, {"className": "px-2.5 py-1 bg-[#526d5d] hover:bg-[#41584a] text-white rounded-lg font-bold text-[11px] flex items-center gap-1"}), React.createElement(MessageCircle, Object.assign({}, {"className": "w-3.5 h-3.5"})), " Gửi Nhắc Nhở Zalo PH"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => triggerPrintPDF(stu, 'CONDUCT_WEEKLY'))}, {"className": "px-2.5 py-1 bg-[#183c42] hover:bg-[#234f57] text-white rounded-lg font-bold text-[11px] flex items-center gap-1"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), " In Phiếu Tuần (1 Trang A4)")))
+                          ))))
+                      )))
+                  );
+                })()), (showViolationChartInTab2 && renderViolationChartWidget()))
             )), (activeTab === 'SODIEM' && (
               React.createElement("div", Object.assign({}, {"className": "space-y-4"}), React.createElement("div", Object.assign({}, {"className": "bg-white p-4 rounded-xl border border-[#e2dfd5] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "text-xs font-bold text-[#183c42]"}), "Chọn môn học:"), (currentSubjects.map((subj) => (
                       React.createElement("div", Object.assign({}, {"key": (subj)}, {"className": "inline-flex items-center"}), React.createElement("button", Object.assign({}, {"onClick": (() => setSelectedSubject(subj))}, {"className": (`px-3 py-1.5 text-xs font-semibold border ${
@@ -5291,20 +5548,25 @@
                       id: newAttTypeForm.id.trim().toUpperCase(),
                       label: newAttTypeForm.label.trim(),
                       points: pts,
-                      color:
-                        pts > 0
-                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                          : 'bg-rose-50 text-rose-900 border-rose-300',
+                      equivAbsent: newAttTypeForm.equivAbsent || (pts < 0 ? 'REPEAT_WARN' : 'NONE'),
+                      badgeClass:
+                        newAttTypeForm.equivAbsent === 'K'
+                          ? 'bg-red-100 text-red-900 border-red-400 font-bold'
+                          : pts > 0
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-rose-50 text-rose-800 border-rose-300',
                     },
                   ]);
-                  setNewAttTypeForm({ id: '', label: '', points: -2 });
+                  setNewAttTypeForm({ id: '', label: '', points: -5, equivAbsent: 'K' });
                   setNewAttTypeModalOpen(false);
                   showToast('Đã thêm tiêu chí đánh giá chuyên cần mới.');
                 })}, {"className": "bg-white border border-stone-300 rounded-xl w-full max-w-sm p-5 space-y-3 text-xs shadow-2xl"}), React.createElement("div", Object.assign({}, {"className": "flex justify-between items-center border-b border-stone-200 pb-2"}), React.createElement("h3", Object.assign({}, {"className": "font-bold text-sm text-[#183c42]"}), "Thêm Tiêu Chí Chuyên Cần Mới"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setNewAttTypeModalOpen(false))}, {"className": "text-stone-400 hover:text-slate-700"}), React.createElement(X, Object.assign({}, {"className": "w-4 h-4"})))), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block font-semibold text-stone-700 mb-1"}), "Mã viết tắt (VD: DP, Khen)"), React.createElement("input", Object.assign({}, {"type": "text"}, {"required": true}, {"value": (newAttTypeForm.id)}, {"onChange": ((e) => setNewAttTypeForm({ ...newAttTypeForm, id: e.target.value }))}, {"className": "w-full px-3 py-1.5 border border-stone-300 rounded"}))), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block font-semibold text-stone-700 mb-1"}), "Tên lỗi hoặc khen thưởng"), React.createElement("input", Object.assign({}, {"type": "text"}, {"required": true}, {"placeholder": "VD: Sai đồng phục / Giải bài khó trên bảng"}, {"value": (newAttTypeForm.label)}, {"onChange": ((e) =>
                       setNewAttTypeForm({ ...newAttTypeForm, label: e.target.value })
                     )}, {"className": "w-full px-3 py-1.5 border border-stone-300 rounded"}))), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block font-semibold text-stone-700 mb-1"}), "Điểm cộng/trừ (Nhập số âm để trừ, số dương để cộng)"), React.createElement("input", Object.assign({}, {"type": "number"}, {"value": (newAttTypeForm.points)}, {"onChange": ((e) =>
                       setNewAttTypeForm({ ...newAttTypeForm, points: e.target.value })
-                    )}, {"className": "w-full px-3 py-1.5 border border-stone-300 rounded"}))), React.createElement("div", Object.assign({}, {"className": "flex justify-end gap-2 pt-2"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setNewAttTypeModalOpen(false))}, {"className": "px-3 py-1.5 border border-stone-300 rounded"}), "Hủy"), React.createElement("button", Object.assign({}, {"type": "submit"}, {"className": "px-4 py-1.5 bg-[#183c42] text-white rounded font-semibold"}), "Lưu tiêu chí"))))
+                    )}, {"className": "w-full px-3 py-1.5 border border-stone-300 rounded"}))), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block font-semibold text-[#183c42] mb-1"}), "Gắn nhãn quy đổi lũy kế nghỉ học / Nhắc nhở tái phạm:"), React.createElement("select", Object.assign({}, {"value": (newAttTypeForm.equivAbsent || 'K')}, {"onChange": ((e) =>
+                      setNewAttTypeForm({ ...newAttTypeForm, equivAbsent: e.target.value })
+                    )}, {"className": "w-full px-2.5 py-1.5 border border-stone-300 rounded bg-white font-semibold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "K"}), "🚨 Nghiêm trọng: Tính thẳng = 1 buổi Nghỉ Không Phép (K) vào lũy kế (như Cúp tiết)"), React.createElement("option", Object.assign({}, {"value": "P"}), "📋 Tính = 1 buổi Nghỉ Có Phép (P) vào lũy kế"), React.createElement("option", Object.assign({}, {"value": "REPEAT_WARN"}), "⚠️ Lỗi tương đương: Tái phạm nhiều lần quy đổi nhắc nhở nghỉ KP/CP"), React.createElement("option", Object.assign({}, {"value": "NONE"}), "✓ Tiêu chí thông thường / Điểm cộng khuyến khích"))), React.createElement("div", Object.assign({}, {"className": "flex justify-end gap-2 pt-2"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setNewAttTypeModalOpen(false))}, {"className": "px-3 py-1.5 border border-stone-300 rounded"}), "Hủy"), React.createElement("button", Object.assign({}, {"type": "submit"}, {"className": "px-4 py-1.5 bg-[#183c42] text-white rounded font-semibold"}), "Lưu tiêu chí"))))
           )), (studentModal && (
             React.createElement("div", Object.assign({}, {"className": "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"}), React.createElement("form", Object.assign({}, {"onSubmit": (handleSaveStudentModal)}, {"className": "bg-white border border-stone-300 rounded-xl w-full max-w-2xl p-5 space-y-3 text-xs max-h-[90vh] overflow-y-auto shadow-2xl"}), React.createElement("div", Object.assign({}, {"className": "flex justify-between items-center border-b border-stone-200 pb-2.5"}), React.createElement("div", null, React.createElement("h3", Object.assign({}, {"className": "font-bold text-sm text-[#183c42]"}), (studentModal.mode === 'ADD' ? 'Thêm Học Sinh Mới Vào Lớp' : 'Cập Nhật Hồ Sơ Học Sinh')), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Mã định danh do Giáo viên tự nhập theo danh sách trường (Ứng dụng không tự động sinh mã)")), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setStudentModal(null))}, {"className": "text-stone-400 hover:text-slate-700"}), React.createElement(X, Object.assign({}, {"className": "w-4 h-4"})))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 sm:grid-cols-2 gap-3"}), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block font-bold text-[#183c42] mb-1"}), "Mã định danh / Mã HS (GV tự nhập)"), React.createElement("input", Object.assign({}, {"type": "text"}, {"placeholder": "VD: 072211001001 (Để trống nếu chưa có)"}, {"value": (studentModal.moetId ?? '')}, {"onChange": ((e) =>
                         setStudentModal({ ...studentModal, moetId: e.target.value })
@@ -5461,8 +5723,8 @@
                   label: `Tháng ${selectedReportMonth}`,
                 };
                 return (
-                  React.createElement("div", Object.assign({}, {"key": (stu.id)}, {"className": (`p-5 max-w-4xl mx-auto border-2 border-black bg-white ${
-                      idx < studentsToPrint.length - 1 ? 'page-break mb-6' : ''
+                  React.createElement("div", Object.assign({}, {"key": (stu.id)}, {"className": (`print-sheet-onepage max-w-4xl mx-auto bg-white text-[10.5px] leading-snug ${
+                      idx < studentsToPrint.length - 1 ? 'page-break' : ''
                     }`)}), React.createElement("div", Object.assign({}, {"className": "flex justify-between items-start border-b-2 border-black pb-2.5 mb-3 text-xs"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), (schoolName)), React.createElement("div", null, "Lớp: ", React.createElement("strong", null, (currentClassObj.name)), " • Năm học: ", React.createElement("strong", null, (schoolYear))), React.createElement("div", null, "GVCN: ", React.createElement("strong", null, (teacherName)))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-3"}), React.createElement("div", Object.assign({}, {"className": "text-right"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"), React.createElement("div", Object.assign({}, {"className": "text-[11px] font-bold underline"}), "Độc lập - Tự do - Hạnh phúc"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic mt-0.5"}), "Ngày in: ", (liveDateText))), React.createElement(QRCodeSVG, Object.assign({}, {"value": (`THANG${selectedReportMonth}_${stu.moetId || stu.id}_${mStat.avgScore}`)}, {"size": (52)})))), React.createElement("div", Object.assign({}, {"className": "text-center my-3"}), React.createElement("h1", Object.assign({}, {"className": "text-base font-extrabold uppercase tracking-wide"}), "PHIẾU THÔNG BÁO KẾT QUẢ CHUYÊN CẦN & NỀ NẾP ", (monthObj.label.toUpperCase())), React.createElement("div", Object.assign({}, {"className": "text-[11px] italic"}), "(Tổng hợp các Tuần: ", (mStat.weeks.map((w) => `Tuần ${w}`).join(', ')), " • Năm học ", (schoolYear), ")")), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 border border-black bg-stone-50 text-xs mb-3"}), React.createElement("div", null, "Họ và tên HS: ", React.createElement("strong", Object.assign({}, {"className": "uppercase"}), (stu.name))), React.createElement("div", null, "Mã định danh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.moetId || '—'))), React.createElement("div", null, "Ngày sinh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.dob || '—')), " (", (stu.gender), ")"), React.createElement("div", null, "Tổ: ", React.createElement("strong", null, "Tổ ", (stu.team)), " • Chức vụ: ", (stu.role)), React.createElement("div", null, "Học nghề: ", React.createElement("strong", null, (stu.vocational || 'Văn hóa'))), React.createElement("div", null, "Tình trạng: ", React.createElement("strong", null, (stu.status || 'Đang học'))), React.createElement("div", null, "SĐT Học sinh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.studentPhone || '—'))), React.createElement("div", null, "SĐT Phụ huynh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.parentPhone || '—')))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-5 gap-2 text-center text-xs mb-3"}), React.createElement("div", Object.assign({}, {"className": "p-2 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Nghỉ Không Phép (K)"), React.createElement("div", Object.assign({}, {"className": "text-base font-extrabold mt-0.5"}), (mStat.absentK), " buổi")), React.createElement("div", Object.assign({}, {"className": "p-2 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Nghỉ Có Phép (P)"), React.createElement("div", Object.assign({}, {"className": "text-base font-extrabold mt-0.5"}), (mStat.absentP), " buổi")), React.createElement("div", Object.assign({}, {"className": "p-2 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Đi Học Muộn (M)"), React.createElement("div", Object.assign({}, {"className": "text-base font-extrabold mt-0.5"}), (mStat.lateM), " lần")), React.createElement("div", Object.assign({}, {"className": "p-2 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Lượt Vi Phạm Nội Quy"), React.createElement("div", Object.assign({}, {"className": "text-base font-extrabold mt-0.5"}), (mStat.violationCount), " lỗi")), React.createElement("div", Object.assign({}, {"className": "p-2 border-2 border-black bg-stone-100"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Điểm RL TB Tháng"), React.createElement("div", Object.assign({}, {"className": "text-base font-extrabold mt-0.5"}), (mStat.avgScore), "đ (", (mStat.monthRank), ")"))), (mStat.isExcessiveAbsence && (
                       React.createElement("div", Object.assign({}, {"className": "p-2.5 border-2 border-black bg-stone-100 text-xs mb-3"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "⚠️ CẢNH BÁO HỌC SINH NGHỈ HỌC QUÁ NHIỀU TRONG THÁNG ", (selectedReportMonth), ":"), React.createElement("p", Object.assign({}, {"className": "mt-0.5"}), "Trong Tháng ", (selectedReportMonth), ", em ", React.createElement("strong", null, (stu.name)), " đã nghỉ tổng cộng", (' '), React.createElement("strong", null, (mStat.totalAbsent), " buổi"), " (gồm ", React.createElement("strong", null, (mStat.absentK), " buổi Không phép [K]"), " và", (' '), React.createElement("strong", null, (mStat.absentP), " buổi Có phép [P]"), "). Đề nghị Quý Phụ huynh sát sao đôn đốc em đi học chuyên cần để đảm bảo kiến thức và không vượt quá giới hạn 45 tiết vắng/năm theo quy chế thi."))
                     )), React.createElement("div", Object.assign({}, {"className": "mb-3"}), React.createElement("div", Object.assign({}, {"className": "text-xs font-bold uppercase mb-1"}), "I. Bảng Tổng Hợp Điểm Chuyên Cần & Vi Phạm Từng Tuần Trong Tháng ", (selectedReportMonth), ":"), React.createElement("table", Object.assign({}, {"className": "w-full border-collapse border border-black text-[11px]"}), React.createElement("thead", null, React.createElement("tr", Object.assign({}, {"className": "bg-stone-100"}), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-left"}), "Tuần học (CN → T7)"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Vắng Không phép (K)"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Vắng Có phép (P)"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Đi muộn (M)"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Vi phạm khác"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Điểm RL Tuần"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center"}), "Xếp loại"))), React.createElement("tbody", null, (mStat.weeklyBreakdown.map((wb) => (
@@ -5567,39 +5829,36 @@
               /* 9. MẪU IN BIÊN BẢN SINH HOẠT LỚP & QUỸ LỚP */
               React.createElement("div", Object.assign({}, {"className": "p-5 max-w-4xl mx-auto border-2 border-black bg-white text-xs space-y-3"}), React.createElement("div", Object.assign({}, {"className": "text-center border-b-2 border-black pb-2"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), (schoolName), " • LỚP ", (currentClassObj.name)), React.createElement("h1", Object.assign({}, {"className": "text-base font-extrabold uppercase mt-1"}), "BIÊN BẢN SINH HOẠT LỚP & TỔNG KẾT TUẦN ", (selectedWeek))), React.createElement("div", null, React.createElement("strong", null, "1. Nhận xét ưu điểm trong tuần:"), " ", (currentMeetingNote.achievements)), React.createElement("div", null, React.createElement("strong", null, "2. Tồn tại cần khắc phục:"), " ", (currentMeetingNote.shortcomings)), React.createElement("div", null, React.createElement("strong", null, "3. Kế hoạch trọng tâm tuần tới:"), " ", (currentMeetingNote.nextWeekPlan)), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 text-center pt-4"}), React.createElement("div", null, React.createElement("strong", null, "THƯ KÝ LỚP"), React.createElement("div", Object.assign({}, {"className": "h-14"}))), React.createElement("div", null, React.createElement("strong", null, "GIÁO VIÊN CHỦ NHIỆM"), React.createElement("div", Object.assign({}, {"className": "h-14"})), React.createElement("strong", null, (teacherName)))))
             ) : (
-              /* 10. MẶC ĐỊNH: PHIẾU THÔNG BÁO VI PHẠM, CHUYÊN CẦN & RÈN LUYỆN TUẦN (TRÌNH BÀY THEO BẢNG TỪNG NGÀY CN -> T7, LỖI CỤ THỂ, NHẬN XÉT & ĐẦY ĐỦ HỌ TÊN, NGÀY SINH, NGHỀ ĐANG HỌC) */
+              /* 10. MẶC ĐỊNH: PHIẾU BÁO CÁO CHUYÊN CẦN, VI PHẠM & NHẮC NHỞ TUẦN (CHUẨN 1 HỌC SINH TRÊN 1 TRANG A4 DUY NHẤT - KHÔNG LỐ TRANG 2, IN CẢ HS KHÔNG VI PHẠM, CÓ CÚP TIẾT TÍNH LŨY KẾ KP & NHẮC NHỞ HS ĐIỂM THẤP) */
               studentsToPrint.map((stu, idx) => {
-                const wCond = calculateWeeklyConductScore(stu.id, selectedWeek);
-                const mCond = calculateMonthlyConductSummary(stu.id, selectedReportMonth);
-                const yCond = calculateYearAttendanceSummary(stu.id);
+                const remInfo = getStudentLowScoreReminder(stu, selectedWeek);
+                const { wCond, mCond, yCond, gpaSem, lowAcademicSubjects, equivLabels, reminderAdvice } = remInfo;
                 const dayRows = buildWeeklyDayRowsForStudent(stu, selectedWeek);
-                const gpaSem = getStudentOverallGPA(stu.id, 'SEMESTER');
-                const autoWeeklyEvaluation =
-                  stu.gvcnComment ||
-                  (wCond.totalAbsentK > 0 || wCond.totalViolations > 0
-                    ? `Trong Tuần ${selectedWeek}, em ${stu.name} (Ngày sinh: ${stu.dob || '—'}, Nghề đang học: ${stu.vocational || 'Chỉ học Văn hóa'}) có điểm rèn luyện đạt ${wCond.score}/100đ (Xếp loại: ${wCond.rank}). Các lỗi cụ thể cần khắc phục gồm: ${wCond.detailList.join('; ')}. Đề nghị Quý Phụ huynh phối hợp sát sao nhắc nhở em đi học đúng giờ và chấp hành nghiêm nội quy lớp học trong tuần tới.`
-                    : `Trong Tuần ${selectedWeek}, em ${stu.name} (Ngày sinh: ${stu.dob || '—'}, Nghề đang học: ${stu.vocational || 'Chỉ học Văn hóa'}) đi học chuyên cần đầy đủ tất cả các buổi Sáng & Chiều, không vi phạm nội quy, đạt ${wCond.score}/100đ (Xếp loại: ${wCond.rank}). Rất mong gia đình tiếp tục động viên, khích lệ em phát huy!`);
 
                 return (
-                  React.createElement("div", Object.assign({}, {"key": (stu.id)}, {"className": (`print-sheet p-5 max-w-4xl mx-auto border-2 border-black bg-white text-xs ${
-                      idx < studentsToPrint.length - 1 ? 'page-break mb-6' : ''
-                    }`)}), React.createElement("div", Object.assign({}, {"className": "flex justify-between items-start border-b-2 border-black pb-2.5 mb-3"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-xs"}), (schoolName)), React.createElement("div", Object.assign({}, {"className": "mt-0.5"}), "Lớp: ", React.createElement("strong", null, (currentClassObj.name)), " • Năm học: ", React.createElement("strong", null, (schoolYear)), " (", (semester), ")"), React.createElement("div", Object.assign({}, {"className": "mt-0.5"}), "Giáo viên chủ nhiệm: ", React.createElement("strong", null, (teacherName)))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-3"}), React.createElement("div", Object.assign({}, {"className": "text-right"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-xs"}), "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"), React.createElement("div", Object.assign({}, {"className": "text-[11px] font-bold underline"}), "Độc lập - Tự do - Hạnh phúc"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic mt-0.5"}), "Ngày xuất phiếu: ", (liveDateText))), React.createElement(QRCodeSVG, Object.assign({}, {"value": (`TUAN${selectedWeek}_${stu.moetId || stu.id}_${wCond.score}`)}, {"size": (50)})))), React.createElement("div", Object.assign({}, {"className": "text-center my-2.5"}), React.createElement("h1", Object.assign({}, {"className": "text-base font-extrabold uppercase tracking-wide"}), "PHIẾU THÔNG BÁO CHUYÊN CẦN, VI PHẠM & RÈN LUYỆN TUẦN ", (selectedWeek), " (", (semester.toUpperCase()), ")"), React.createElement("div", Object.assign({}, {"className": "text-[11px] font-semibold mt-0.5"}), "Thời gian: Từ Chủ nhật ngày ", (formatVNFullDate(currentWeekInfo?.startSunday)), " đến Thứ Bảy ngày ", (formatVNFullDate(currentWeekInfo?.endSaturday)))), React.createElement("div", Object.assign({}, {"className": "border-2 border-black bg-stone-50 p-2.5 mb-3"}), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 sm:grid-cols-4 gap-y-1.5 gap-x-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "sm:col-span-2"}), "Họ và tên học sinh: ", React.createElement("strong", Object.assign({}, {"className": "uppercase text-[13px]"}), (stu.name))), React.createElement("div", null, "Ngày sinh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono text-[13px]"}), (stu.dob || '—')), " (", (stu.gender || '—'), ")"), React.createElement("div", null, "Mã định danh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.moetId || 'Chưa nhập'))), React.createElement("div", Object.assign({}, {"className": "sm:col-span-2"}), "Nghề đang học (Trung cấp / GDTX):", (' '), React.createElement("strong", Object.assign({}, {"className": "uppercase underline"}), (stu.vocational && stu.vocational !== 'Không học nghề'
+                  React.createElement("div", Object.assign({}, {"key": (stu.id)}, {"className": (`print-sheet-onepage max-w-4xl mx-auto bg-white text-[10.5px] leading-snug ${
+                      idx < studentsToPrint.length - 1 ? 'page-break' : ''
+                    }`)}), React.createElement("div", Object.assign({}, {"className": "flex justify-between items-center border-b-2 border-black pb-1.5 mb-1.5"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[11px]"}), (schoolName)), React.createElement("div", Object.assign({}, {"className": "text-[10px]"}), "Lớp: ", React.createElement("strong", null, (currentClassObj.name)), " • Năm học: ", React.createElement("strong", null, (schoolYear)), " (", (semester), ") • GVCN: ", React.createElement("strong", null, (teacherName)))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2.5"}), React.createElement("div", Object.assign({}, {"className": "text-right"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[10.5px]"}), "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold underline"}), "Độc lập - Tự do - Hạnh phúc")), React.createElement(QRCodeSVG, Object.assign({}, {"value": (`TUAN${selectedWeek}_${stu.moetId || stu.id}_${wCond.score}`)}, {"size": (38)})))), React.createElement("div", Object.assign({}, {"className": "text-center my-1"}), React.createElement("h1", Object.assign({}, {"className": "text-[13px] font-extrabold uppercase tracking-wide"}), "PHIẾU THÔNG BÁO CHUYÊN CẦN, VI PHẠM & NHẮC NHỞ RÈN LUYỆN TUẦN ", (selectedWeek), " (", (semester.toUpperCase()), ")"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic"}), "Chu kỳ: Từ Chủ nhật ", (formatVNFullDate(currentWeekInfo?.startSunday)), " đến Thứ Bảy ", (formatVNFullDate(currentWeekInfo?.endSaturday)), " • Phiếu số ", (idx + 1), "/", (studentsToPrint.length))), React.createElement("div", Object.assign({}, {"className": "border border-black bg-stone-50 px-2.5 py-1.5 mb-1.5"}), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-12 gap-x-2 gap-y-0.5 text-[10.5px]"}), React.createElement("div", Object.assign({}, {"className": "col-span-5"}), "Họ và tên HS: ", React.createElement("strong", Object.assign({}, {"className": "uppercase text-[11.5px]"}), (stu.name))), React.createElement("div", Object.assign({}, {"className": "col-span-3"}), "Ngày sinh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.dob || '—')), " (", (stu.gender || '—'), ")"), React.createElement("div", Object.assign({}, {"className": "col-span-4"}), "Mã định danh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.moetId || 'Chưa nhập')), " • Tổ ", (stu.team)), React.createElement("div", Object.assign({}, {"className": "col-span-6"}), "Nghề đang học:", (' '), React.createElement("strong", Object.assign({}, {"className": "uppercase underline"}), (stu.vocational && stu.vocational !== 'Không học nghề'
                               ? stu.vocational
-                              : 'Chỉ học Văn hóa (Không đăng ký nghề)'))), React.createElement("div", null, "Lớp / Tổ: ", React.createElement("strong", null, (currentClassObj.name), " • Tổ ", (stu.team)), " (", (stu.role || 'Thành viên'), ")"), React.createElement("div", null, "Thái độ học tập: ", React.createElement("strong", null, (stu.attitude || 'Tích cực'))), React.createElement("div", null, "Chế độ miễn giảm HP: ", React.createElement("strong", null, (stu.tuitionExemption || 'Không thuộc diện'))), React.createElement("div", null, "ĐTB học tập hiện tại: ", React.createElement("strong", null, (gpaSem ?? 'Đang cập nhật'))), React.createElement("div", null, "SĐT Học sinh: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.studentPhone || '—'))), React.createElement("div", null, "SĐT Phụ huynh (Zalo): ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.parentPhone || '—'))))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-5 gap-2 text-center text-xs mb-3"}), React.createElement("div", Object.assign({}, {"className": "p-1.5 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Vắng Không Phép (K)"), React.createElement("div", Object.assign({}, {"className": "text-sm font-extrabold mt-0.5"}), (wCond.totalAbsentK), " buổi")), React.createElement("div", Object.assign({}, {"className": "p-1.5 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Vắng Có Phép (P)"), React.createElement("div", Object.assign({}, {"className": "text-sm font-extrabold mt-0.5"}), (wCond.totalAbsentP), " buổi")), React.createElement("div", Object.assign({}, {"className": "p-1.5 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Đi Học Muộn (M)"), React.createElement("div", Object.assign({}, {"className": "text-sm font-extrabold mt-0.5"}), (wCond.totalLate), " lần")), React.createElement("div", Object.assign({}, {"className": "p-1.5 border border-black"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Lỗi Vi Phạm / Khen"), React.createElement("div", Object.assign({}, {"className": "text-sm font-extrabold mt-0.5"}), (wCond.totalViolations), " lỗi / +", (wCond.totalPlus), " khen")), React.createElement("div", Object.assign({}, {"className": "p-1.5 border-2 border-black bg-stone-100"}), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-bold uppercase"}), "Điểm RL Tuần ", (selectedWeek)), React.createElement("div", Object.assign({}, {"className": "text-sm font-extrabold mt-0.5"}), (wCond.score), "/100đ (", (wCond.rank), ")"))), React.createElement("div", Object.assign({}, {"className": "mb-3"}), React.createElement("div", Object.assign({}, {"className": "text-xs font-bold uppercase mb-1"}), "I. Bảng Chi Tiết Chuyên Cần, Các Lỗi Vi Phạm Cụ Thể & Nhận Xét Từng Ngày Trong Tuần ", (selectedWeek), " (Chủ Nhật → Thứ Bảy):"), React.createElement("table", Object.assign({}, {"className": "print-table w-full border-collapse border border-black text-[11px]"}), React.createElement("thead", null, React.createElement("tr", Object.assign({}, {"className": "bg-stone-100"}), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center w-8"}), "STT"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-left w-32"}), "Thứ & Ngày/Tháng"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-left"}), "Buổi Sáng (Văn hóa)", React.createElement("br", null), React.createElement("span", Object.assign({}, {"className": "text-[10px] font-normal italic"}), "(Ghi rõ mã & lỗi cụ thể)")), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-left"}), "Buổi Chiều (Học nghề / Phụ đạo)", React.createElement("br", null), React.createElement("span", Object.assign({}, {"className": "text-[10px] font-normal italic"}), "(Ghi rõ mã & lỗi cụ thể)")), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-center w-16"}), "Điểm (+/-)"), React.createElement("th", Object.assign({}, {"className": "border border-black p-1.5 text-left w-56"}), "Nhận xét & Đánh giá trong ngày"))), React.createElement("tbody", null, (dayRows.map((dr, dIdx) => (
-                            React.createElement("tr", Object.assign({}, {"key": (dr.dayKey)}, {"className": (dr.hasViolation ? 'bg-stone-50 font-semibold' : '')}), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5 text-center font-mono"}), (dIdx + 1)), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5 font-bold whitespace-nowrap"}), (dr.dayLabel), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-mono font-normal"}), "(", (dr.fullVnDate), ")")), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5"}), (dr.morningItems.length === 0 ? (
-                                  React.createElement("span", Object.assign({}, {"className": "text-stone-700"}), "✓ Có mặt đầy đủ, đúng giờ")
+                              : 'Chỉ học Văn hóa (Không ĐK nghề)'))), React.createElement("div", Object.assign({}, {"className": "col-span-3"}), "SĐT HS: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.studentPhone || '—'))), React.createElement("div", Object.assign({}, {"className": "col-span-3"}), "SĐT PH: ", React.createElement("strong", Object.assign({}, {"className": "font-mono"}), (stu.parentPhone || '—'))), React.createElement("div", Object.assign({}, {"className": "col-span-12 pt-0.5 border-t border-stone-300 flex flex-wrap items-center justify-between gap-1"}), React.createElement("span", null, "ĐTB các môn hiện tại: ", React.createElement("strong", null, (gpaSem ?? 'Đang cập nhật')), (' '), (lowAcademicSubjects.length > 0 ? (
+                              React.createElement("strong", Object.assign({}, {"className": "underline"}), "(⚠️ Môn điểm thấp cần nhắc nhở: ", (lowAcademicSubjects.map((x) => x.summary).join('; ')), ")")
+                            ) : (
+                              React.createElement("span", null, "(Các môn đạt yêu cầu)")
+                            ))), React.createElement("span", Object.assign({}, {"className": "font-bold"}), (equivLabels.length > 0 ? equivLabels[0] : '✓ Trạng thái chuyên cần: Thực hiện nghiêm túc'))))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-5 gap-1.5 text-center text-[10px] mb-1.5"}), React.createElement("div", Object.assign({}, {"className": "p-1 border border-black"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[9px]"}), "Nghỉ KP + Cúp Tiết (Lũy Kế)"), React.createElement("div", Object.assign({}, {"className": "text-[11.5px] font-extrabold"}), (wCond.totalAbsentK), " buổi (", (wCond.rawAbsentK || 0), "K + ", (wCond.skipClassCT || 0), "CT)")), React.createElement("div", Object.assign({}, {"className": "p-1 border border-black"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[9px]"}), "Nghỉ Có Phép (P)"), React.createElement("div", Object.assign({}, {"className": "text-[11.5px] font-extrabold"}), (wCond.totalAbsentP), " buổi")), React.createElement("div", Object.assign({}, {"className": "p-1 border border-black"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[9px]"}), "Đi Học Muộn (M)"), React.createElement("div", Object.assign({}, {"className": "text-[11.5px] font-extrabold"}), (wCond.totalLate), " lần")), React.createElement("div", Object.assign({}, {"className": "p-1 border border-black"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[9px]"}), "Tổng Lỗi / Điểm Cộng"), React.createElement("div", Object.assign({}, {"className": "text-[11.5px] font-extrabold"}), (wCond.totalViolations), " lỗi / +", (wCond.totalPlus), " khen")), React.createElement("div", Object.assign({}, {"className": "p-1 border-2 border-black bg-stone-100"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[9px]"}), "Điểm RL Tuần ", (selectedWeek)), React.createElement("div", Object.assign({}, {"className": "text-[11.5px] font-extrabold"}), (wCond.score), "/100đ (", (wCond.rank), ")"))), React.createElement("div", Object.assign({}, {"className": "mb-1.5"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[10.5px] mb-0.5"}), "I. Bảng Theo Dõi Chuyên Cần, Lỗi Vi Phạm Cụ Thể & Nhận Xét Từng Ngày Trong Tuần ", (selectedWeek), " (Chủ Nhật → Thứ Bảy):"), React.createElement("table", Object.assign({}, {"className": "print-table-compact w-full border-collapse border border-black"}), React.createElement("thead", null, React.createElement("tr", Object.assign({}, {"className": "bg-stone-100"}), React.createElement("th", Object.assign({}, {"className": "border border-black text-center w-6"}), "#"), React.createElement("th", Object.assign({}, {"className": "border border-black text-left w-28"}), "Thứ & Ngày"), React.createElement("th", Object.assign({}, {"className": "border border-black text-left"}), "Buổi Sáng (Văn hóa) — Lỗi cụ thể / Khen"), React.createElement("th", Object.assign({}, {"className": "border border-black text-left"}), "Buổi Chiều (Nghề / Phụ đạo) — Lỗi cụ thể"), React.createElement("th", Object.assign({}, {"className": "border border-black text-center w-12"}), "Điểm"), React.createElement("th", Object.assign({}, {"className": "border border-black text-left w-52"}), "Nhận xét & Nhắc nhở từng ngày"))), React.createElement("tbody", null, (dayRows.map((dr, dIdx) => (
+                            React.createElement("tr", Object.assign({}, {"key": (dr.dayKey)}, {"className": (dr.hasViolation ? 'bg-stone-50 font-semibold' : '')}), React.createElement("td", Object.assign({}, {"className": "border border-black text-center font-mono"}), (dIdx + 1)), React.createElement("td", Object.assign({}, {"className": "border border-black font-bold whitespace-nowrap"}), (dr.dayLabel), " ", React.createElement("span", Object.assign({}, {"className": "font-mono font-normal"}), "(", (dr.vnDate), ")")), React.createElement("td", Object.assign({}, {"className": "border border-black"}), (dr.morningItems.length === 0 ? (
+                                  React.createElement("span", null, "✓ Có mặt đầy đủ, đúng giờ")
                                 ) : (
                                   React.createElement("strong", null, (dr.morningText))
-                                ))), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5"}), (dr.afternoonItems.length === 0 ? (
-                                  React.createElement("span", Object.assign({}, {"className": "text-stone-700"}), "✓ Có mặt đầy đủ, đúng giờ")
+                                ))), React.createElement("td", Object.assign({}, {"className": "border border-black"}), (dr.afternoonItems.length === 0 ? (
+                                  React.createElement("span", null, "✓ Có mặt đầy đủ, đúng giờ")
                                 ) : (
                                   React.createElement("strong", null, (dr.afternoonText))
-                                ))), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5 text-center font-mono font-bold"}), (dr.dayDelta === 0 ? '0đ' : dr.dayDelta > 0 ? `+${dr.dayDelta}đ` : `${dr.dayDelta}đ`)), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5 leading-snug"}), (dr.dayComment)))
-                          )))), React.createElement("tfoot", null, React.createElement("tr", Object.assign({}, {"className": "bg-stone-100 font-bold"}), React.createElement("td", Object.assign({}, {"colSpan": (2)}, {"className": "border border-black p-1.5 text-center uppercase"}), "Tổng kết Tuần ", (selectedWeek)), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5"}), "Vắng: ", (wCond.totalAbsentK), " buổi K.Phép, ", (wCond.totalAbsentP), " buổi Có phép"), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5"}), "Đi muộn: ", (wCond.totalLate), " lần • Lỗi vi phạm: ", (wCond.totalViolations), " lượt"), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5 text-center font-mono text-xs"}), (wCond.score), "/100đ"), React.createElement("td", Object.assign({}, {"className": "border border-black p-1.5"}), "Xếp loại rèn luyện Tuần ", (selectedWeek), ": ", React.createElement("span", Object.assign({}, {"className": "uppercase underline"}), (wCond.rank))))))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 gap-2 mb-3"}), React.createElement("div", Object.assign({}, {"className": "p-2.5 border border-black bg-white"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-xs mb-1"}), "II. Tổng Hợp Lỗi Cụ Thể Cần Khắc Phục & Nhận Xét Của Giáo Viên Chủ Nhiệm:"), React.createElement("div", Object.assign({}, {"className": "space-y-1 text-[11px] leading-relaxed"}), React.createElement("div", null, React.createElement("strong", null, "1. Chi tiết các lỗi vi phạm cụ thể trong Tuần ", (selectedWeek), ":"), (' '), (wCond.detailList.length === 0 ? (
-                              React.createElement("span", null, "Không có lỗi vi phạm — Học sinh đi học chuyên cần đầy đủ và thực hiện nghiêm túc nội quy nhà trường.")
-                            ) : (
-                              React.createElement("strong", Object.assign({}, {"className": "underline"}), (wCond.detailList.join(' | ')))
-                            ))), React.createElement("div", null, React.createElement("strong", null, "2. Đối chiếu lũy kế Tháng ", (selectedReportMonth), " & Cả năm học:"), (' '), "Trong Tháng ", (selectedReportMonth), ": Nghỉ ", React.createElement("strong", null, (mCond.totalAbsent), " buổi"), " (", (mCond.absentK), "K, ", (mCond.absentP), "P), Đi muộn ", React.createElement("strong", null, (mCond.lateM), " lần"), ", Điểm RL TB Tháng: ", React.createElement("strong", null, (mCond.avgScore), "đ (", (mCond.monthRank), ")"), " • Lũy kế từ đầu năm: Nghỉ ", React.createElement("strong", null, (yCond.absentP + yCond.absentK), "/45 buổi"), " (", (yCond.absentK), "K, ", (yCond.absentP), "P)."), React.createElement("div", null, React.createElement("strong", null, "3. Nhận xét & Đề nghị phối hợp của GVCN (", (teacherName), "):"), (' '), (autoWeeklyEvaluation))))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-3 text-center text-xs pt-1"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "Ý KIẾN & CHỮ KÝ PHỤ HUYNH"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic"}), "(Ký, ghi rõ họ tên & ý kiến phản hồi)"), React.createElement("div", Object.assign({}, {"className": "h-14"})), React.createElement("div", Object.assign({}, {"className": "text-[11px]"}), "SĐT PH: ", (stu.parentPhone || '............................'))), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "CAM KẾT CỦA HỌC SINH"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic"}), "(Học sinh ký và ghi rõ họ tên)"), React.createElement("div", Object.assign({}, {"className": "h-14"})), React.createElement("div", Object.assign({}, {"className": "font-bold"}), (stu.name))), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "GIÁO VIÊN CHỦ NHIỆM"), React.createElement("div", Object.assign({}, {"className": "text-[10px] italic"}), "(Ký và ghi rõ họ tên)"), React.createElement("div", Object.assign({}, {"className": "h-14"})), React.createElement("div", Object.assign({}, {"className": "font-bold"}), (teacherName)))))
+                                ))), React.createElement("td", Object.assign({}, {"className": "border border-black text-center font-mono font-bold"}), (dr.dayDelta === 0 ? '0đ' : dr.dayDelta > 0 ? `+${dr.dayDelta}đ` : `${dr.dayDelta}đ`)), React.createElement("td", Object.assign({}, {"className": "border border-black"}), (dr.dayComment)))
+                          )))), React.createElement("tfoot", null, React.createElement("tr", Object.assign({}, {"className": "bg-stone-100 font-bold"}), React.createElement("td", Object.assign({}, {"colSpan": (2)}, {"className": "border border-black text-center uppercase"}), "Tổng cộng Tuần ", (selectedWeek)), React.createElement("td", Object.assign({}, {"className": "border border-black"}), "Nghỉ KP + Cúp tiết: ", (wCond.totalAbsentK), " buổi (", (wCond.rawAbsentK || 0), "K, ", (wCond.skipClassCT || 0), "CT) • Có phép: ", (wCond.totalAbsentP), "P"), React.createElement("td", Object.assign({}, {"className": "border border-black"}), "Đi muộn: ", (wCond.totalLate), "M • Tổng vi phạm: ", (wCond.totalViolations), " lỗi"), React.createElement("td", Object.assign({}, {"className": "border border-black text-center font-mono"}), (wCond.score), "đ"), React.createElement("td", Object.assign({}, {"className": "border border-black"}), "Xếp loại Tuần ", (selectedWeek), ": ", React.createElement("span", Object.assign({}, {"className": "uppercase underline"}), (wCond.rank))))))), React.createElement("div", Object.assign({}, {"className": "p-2 border border-black bg-white mb-1.5 space-y-0.5 text-[10px] leading-snug"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase text-[10.5px]"}), "II. Tổng Hợp Lỗi Cụ Thể, Quy Đổi Lũy Kế & Nhắc Nhở Học Sinh Điểm Thấp Trong Tuần:"), React.createElement("div", null, React.createElement("strong", null, "1. Lỗi cụ thể phát sinh trong Tuần ", (selectedWeek), ":"), (' '), (wCond.detailList.length === 0 ? (
+                          React.createElement("span", null, "Không có vi phạm (0 lỗi) — Học sinh đi học đầy đủ tất cả các buổi và chấp hành nghiêm túc nội quy lớp học.")
+                        ) : (
+                          React.createElement("strong", Object.assign({}, {"className": "underline"}), (wCond.detailList.join(' | ')))
+                        ))), React.createElement("div", null, React.createElement("strong", null, "2. Lũy kế Chuyên cần (Cúp tiết [CT] tính = Nghỉ KP [K]) & Nhãn tương đương:"), (' '), "Lũy kế Tháng ", (selectedReportMonth), ": Nghỉ KP + Cúp tiết ", React.createElement("strong", null, (mCond.absentK), " buổi"), " (gồm ", (mCond.rawAbsentK || 0), "K + ", (mCond.skipClassCT || 0), " lần Cúp tiết), Nghỉ có phép ", React.createElement("strong", null, (mCond.absentP), " buổi"), ", Điểm RL TB Tháng: ", React.createElement("strong", null, (mCond.avgScore), "đ (", (mCond.monthRank), ")"), " • Lũy kế Năm học: ", React.createElement("strong", null, (yCond.absentK + yCond.absentP), "/45 buổi"), ".", (' '), (equivLabels.length > 0 && React.createElement("strong", Object.assign({}, {"className": "underline"}), "[", (equivLabels.join(' • ')), "]"))), React.createElement("div", null, React.createElement("strong", null, "3. Nhận xét & Nhắc nhở của GVCN (", (teacherName), "):"), (' '), (stu.gvcnComment || reminderAdvice))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-3 text-center text-[10px] pt-0.5"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "Ý KIẾN & CHỮ KÝ PHỤ HUYNH"), React.createElement("div", Object.assign({}, {"className": "text-[9px] italic"}), "(Ký, ghi rõ họ tên & SĐT: ", (stu.parentPhone || '................'), ")"), React.createElement("div", Object.assign({}, {"className": "h-9"})), React.createElement("div", null, "................................................")), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "CAM KẾT CỦA HỌC SINH"), React.createElement("div", Object.assign({}, {"className": "text-[9px] italic"}), "(Ký và ghi rõ họ tên)"), React.createElement("div", Object.assign({}, {"className": "h-9"})), React.createElement("div", Object.assign({}, {"className": "font-bold"}), (stu.name))), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), "GIÁO VIÊN CHỦ NHIỆM"), React.createElement("div", Object.assign({}, {"className": "text-[9px] italic"}), "(Ký và ghi rõ họ tên)"), React.createElement("div", Object.assign({}, {"className": "h-9"})), React.createElement("div", Object.assign({}, {"className": "font-bold"}), (teacherName)))))
                 );
               })
             )), "          "))
