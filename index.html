@@ -1315,19 +1315,37 @@
       const [seatLayoutConfig, setSeatLayoutConfig] = useState(
         () => ({
           cols: 4,
-          desksPerCol: 5,
+          desksPerCol: 6,
           seatsPerDesk: 2,
           teamCount: 4,
+          teamGroupMode: 'BY_COUNT', // 'BY_COUNT' | 'BY_DESKS'
+          desksPerTeam: 3,
           ...(initialSaved?.seatLayoutConfig || {}),
         })
       );
-      const activeTeamCount = Math.max(2, Math.min(8, Number(seatLayoutConfig.teamCount) || 4));
+      const desksPerTeamCount = Math.max(1, Math.min(6, Number(seatLayoutConfig.desksPerTeam) || 3));
+      const computedTeamsByDesks = useMemo(() => {
+        const cols = Math.max(1, Number(seatLayoutConfig.cols) || 4);
+        const desksPerCol = Math.max(1, Number(seatLayoutConfig.desksPerCol) || 5);
+        const teamsPerCol = Math.max(1, Math.ceil(desksPerCol / desksPerTeamCount));
+        return Math.min(12, cols * teamsPerCol);
+      }, [seatLayoutConfig.cols, seatLayoutConfig.desksPerCol, desksPerTeamCount]);
+
+      const activeTeamCount =
+        seatLayoutConfig.teamGroupMode === 'BY_DESKS'
+          ? computedTeamsByDesks
+          : Math.max(2, Math.min(12, Number(seatLayoutConfig.teamCount) || 4));
+
       const teamNumberList = useMemo(
         () => Array.from({ length: activeTeamCount }, (_, i) => i + 1),
         [activeTeamCount]
       );
       const [attendanceSeatScope, setAttendanceSeatScope] = useState('MONTH'); // 'MONTH' | 'WEEK' | 'YEAR'
       const [attendanceSeatStrategy, setAttendanceSeatStrategy] = useState('AT_RISK_FRONT'); // 'AT_RISK_FRONT' | 'INTERLEAVE_BUDDY' | 'GOOD_FRONT'
+      const [pinFrontForm, setPinFrontForm] = useState({
+        studentId: '',
+        reason: 'Cận thị / Không nhìn thấy bảng',
+      });
       const [autoTimeGenerator, setAutoTimeGenerator] = useState(() => {
         const savedCfg = initialSaved?.autoTimeGenerator;
         const def = buildDefaultAutoTimeConfig();
@@ -1874,7 +1892,7 @@
         setSelectedWeek(10);
         setArchiveByYear(defArc);
         setAttendanceTypes(INITIAL_ATTENDANCE_TYPES);
-        setSeatLayoutConfig({ cols: 4, desksPerCol: 5, seatsPerDesk: 2, teamCount: 4 });
+        setSeatLayoutConfig({ cols: 4, desksPerCol: 6, seatsPerDesk: 2, teamCount: 4, teamGroupMode: 'BY_COUNT', desksPerTeam: 3 });
         setPeriodTimes(buildDefaultPeriodTimes());
         setActiveClass('10A1');
         setBackupModalOpen(false);
@@ -3291,17 +3309,25 @@
           }
         }
 
+        // Ưu tiên đưa các cặp có học sinh được ghim bàn đầu (cận thị / chiều cao thấp) lên các bàn đầu trước
+        const pairedTuples = mentors.map((mItem, idx) => ({
+          mItem,
+          tItem: mentees[idx],
+          hasPinned: Boolean(mItem.stu.frontRowPinned || mentees[idx]?.stu?.frontRowPinned),
+        }));
+        pairedTuples.sort((a, b) => (b.hasPinned ? 1 : 0) - (a.hasPinned ? 1 : 0));
+
         const newPairs = [];
         const newDeskAssignmentMap = {};
 
-        mentors.forEach((mItem, idx) => {
-          const tItem = mentees[idx];
+        pairedTuples.forEach(({ mItem, tItem }, idx) => {
           const targetDesk = availableDesks[idx] || { col: (idx % cols) + 1, desk: Math.floor(idx / cols) + 1, deskKey: `${(idx % cols) + 1}-${Math.floor(idx / cols) + 1}` };
           const slotMentor = `${targetDesk.col}-${targetDesk.desk}-1`;
           const slotMentee = `${targetDesk.col}-${targetDesk.desk}-2`;
+          const deskTeam = getTeamNumberForDesk(targetDesk.col, targetDesk.desk, seatLayoutConfig);
 
-          newDeskAssignmentMap[mItem.stu.id] = { deskSlot: slotMentor, team: targetDesk.col };
-          newDeskAssignmentMap[tItem.stu.id] = { deskSlot: slotMentee, team: targetDesk.col };
+          newDeskAssignmentMap[mItem.stu.id] = { deskSlot: slotMentor, team: deskTeam };
+          newDeskAssignmentMap[tItem.stu.id] = { deskSlot: slotMentee, team: deskTeam };
 
           newPairs.push({
             id: `PAIR_${Date.now()}_${idx}`,
@@ -4069,7 +4095,10 @@
         setStudentsByClass((prev) => {
           const list = (prev[activeClass] || []).map((s) => {
             if (!targetStudentId) return s.deskSlot === slotKey ? { ...s, deskSlot: '' } : s;
-            if (s.id === targetStudentId) return { ...s, deskSlot: slotKey, team: getTeamNumberForColumn(colNum, seatLayoutConfig.cols, activeTeamCount) };
+            if (s.id === targetStudentId) {
+              const deskNum = Number((slotKey || '').split('-')[1]) || 1;
+              return { ...s, deskSlot: slotKey, team: getTeamNumberForDesk(colNum, deskNum, seatLayoutConfig) };
+            }
             if (s.deskSlot === slotKey) return { ...s, deskSlot: '' };
             return s;
           });
@@ -4089,48 +4118,130 @@
         showToast(`Đã đổi chỗ ngồi giữa vị trí ${slotA} và ${slotB}!`);
       };
 
-      const getTeamNumberForColumn = (colNum, totalCols, tCount) => {
-        const tc = Math.max(2, Math.min(8, Number(tCount) || 4));
-        if (tc === totalCols) return colNum;
-        return ((colNum - 1) % tc) + 1;
+      const getTeamNumberForDesk = (colNum, deskNum, cfg = seatLayoutConfig) => {
+        const cols = Math.max(1, Number(cfg.cols) || 4);
+        const desksPerCol = Math.max(1, Number(cfg.desksPerCol) || 5);
+        if (cfg.teamGroupMode === 'BY_DESKS') {
+          const dpt = Math.max(1, Math.min(6, Number(cfg.desksPerTeam) || 3));
+          const teamsPerCol = Math.max(1, Math.ceil(desksPerCol / dpt));
+          const blockIdx = Math.floor((Math.max(1, Number(deskNum) || 1) - 1) / dpt);
+          return Math.min(12, (Math.max(1, Number(colNum) || 1) - 1) * teamsPerCol + blockIdx + 1);
+        }
+        const tc = Math.max(2, Math.min(12, Number(cfg.teamCount) || 4));
+        if (tc === cols) return colNum;
+        return ((Math.max(1, Number(colNum) || 1) - 1) % tc) + 1;
       };
 
-      const handleChangeTeamCount = (nextTeamCount) => {
-        const tc = Math.max(2, Math.min(8, Number(nextTeamCount) || 4));
-        setSeatLayoutConfig((prev) => ({ ...prev, teamCount: tc }));
+      const getTeamNumberForColumn = (colNum, totalCols, tCount) => {
+        return getTeamNumberForDesk(colNum, 1, {
+          ...seatLayoutConfig,
+          cols: totalCols,
+          teamCount: tCount,
+        });
+      };
+
+      const syncTeamsForSeatedStudents = (nextCfg) => {
         setStudentsByClass((prev) => {
           const list = (prev[activeClass] || []).map((stu, idx) => {
+            if (stu.deskSlot) {
+              const [cStr, rStr] = stu.deskSlot.split('-');
+              const cNum = Number(cStr) || 1;
+              const rNum = Number(rStr) || 1;
+              return { ...stu, team: getTeamNumberForDesk(cNum, rNum, nextCfg) };
+            }
+            const maxT =
+              nextCfg.teamGroupMode === 'BY_DESKS'
+                ? Math.min(
+                    12,
+                    (Number(nextCfg.cols) || 4) *
+                      Math.max(1, Math.ceil((Number(nextCfg.desksPerCol) || 5) / Math.max(1, Number(nextCfg.desksPerTeam) || 3)))
+                  )
+                : Math.max(2, Math.min(12, Number(nextCfg.teamCount) || 4));
             const curTeam = Number(stu.team) || 1;
-            const normalizedTeam = curTeam > tc ? (idx % tc) + 1 : curTeam;
-            return { ...stu, team: normalizedTeam };
+            return { ...stu, team: curTeam > maxT ? (idx % maxT) + 1 : curTeam };
           });
           return { ...prev, [activeClass]: list };
         });
-        showToast(`Đã cập nhật lớp ${currentClassObj.name} thành ${tc} tổ!`);
+      };
+
+      const handleChangeTeamCount = (nextTeamCount) => {
+        const tc = Math.max(2, Math.min(12, Number(nextTeamCount) || 4));
+        const nextCfg = { ...seatLayoutConfig, teamGroupMode: 'BY_COUNT', teamCount: tc };
+        setSeatLayoutConfig(nextCfg);
+        syncTeamsForSeatedStudents(nextCfg);
+        showToast(`Đã chuyển sang chế độ chia đều ${tc} tổ cho lớp ${currentClassObj.name}!`);
+      };
+
+      const handleApplyDesksPerTeamMode = (desksPerT = 3) => {
+        const dpt = Math.max(1, Math.min(6, Number(desksPerT) || 3));
+        const nextCfg = { ...seatLayoutConfig, teamGroupMode: 'BY_DESKS', desksPerTeam: dpt };
+        const teamsPerCol = Math.max(1, Math.ceil((Number(nextCfg.desksPerCol) || 5) / dpt));
+        const totalTeams = Math.min(12, (Number(nextCfg.cols) || 4) * teamsPerCol);
+        setSeatLayoutConfig(nextCfg);
+        syncTeamsForSeatedStudents(nextCfg);
+        showToast(`Đã bật chế độ chia tổ ${dpt} bàn / 1 tổ (Tổng ${totalTeams} tổ) và đồng bộ tổ cho toàn lớp!`);
+      };
+
+      const handleTogglePinFrontRow = (stuId, customReason = null) => {
+        if (!stuId) return;
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((s) => {
+            if (s.id !== stuId) return s;
+            const nextPinned = customReason !== null ? true : !s.frontRowPinned;
+            return {
+              ...s,
+              frontRowPinned: nextPinned,
+              frontRowReason: nextPinned
+                ? customReason || s.frontRowReason || 'Cận thị / Không nhìn thấy bảng'
+                : '',
+            };
+          }),
+        }));
       };
 
       const handleAutoArrangeDesks = () => {
         const { cols, desksPerCol, seatsPerDesk } = seatLayoutConfig;
-        const tc = activeTeamCount;
         const slots = [];
         for (let r = 1; r <= desksPerCol; r++) {
           for (let c = 1; c <= cols; c++) {
             for (let s = 1; s <= seatsPerDesk; s++) {
-              slots.push({ slotKey: `${c}-${r}-${s}`, col: c });
+              slots.push({ slotKey: `${c}-${r}-${s}`, col: c, row: r });
             }
           }
         }
-        setStudentsByClass((prev) => {
-          const list = (prev[activeClass] || []).map((stu, idx) => {
-            const target = slots[idx];
-            const assignedTeam = tc === cols && target ? target.col : (idx % tc) + 1;
-            return target
-              ? { ...stu, deskSlot: target.slotKey, team: assignedTeam }
-              : { ...stu, deskSlot: '', team: assignedTeam };
-          });
-          return { ...prev, [activeClass]: list };
+        // Ưu tiên xếp các học sinh được ghim ngồi bàn đầu (cận thị / chiều cao thấp) trước
+        const pinnedList = currentStudents.filter((s) => s.frontRowPinned);
+        const normalList = currentStudents.filter((s) => !s.frontRowPinned);
+        const ordered = [...pinnedList, ...normalList];
+        const assignMap = {};
+        ordered.forEach((stu, idx) => {
+          const target = slots[idx];
+          const assignedTeam = target
+            ? seatLayoutConfig.teamGroupMode === 'BY_DESKS'
+              ? getTeamNumberForDesk(target.col, target.row, seatLayoutConfig)
+              : activeTeamCount === cols
+              ? target.col
+              : (idx % activeTeamCount) + 1
+            : (idx % activeTeamCount) + 1;
+          assignMap[stu.id] = {
+            deskSlot: target ? target.slotKey : '',
+            team: assignedTeam,
+          };
         });
-        showToast(`Đã xếp tuần tự toàn bộ học sinh vào các bàn học và chia đều theo ${tc} tổ!`);
+        setStudentsByClass((prev) => ({
+          ...prev,
+          [activeClass]: (prev[activeClass] || []).map((stu) =>
+            assignMap[stu.id]
+              ? { ...stu, deskSlot: assignMap[stu.id].deskSlot, team: assignMap[stu.id].team }
+              : stu
+          ),
+        }));
+        showToast(
+          pinnedList.length > 0
+            ? `Đã xếp chỗ tuần tự (giữ ${pinnedList.length} HS ghim bàn đầu) và chia theo ${activeTeamCount} tổ!`
+            : `Đã xếp tuần tự toàn bộ học sinh vào các bàn học và chia theo ${activeTeamCount} tổ!`
+        );
       };
 
       const getStudentAttendanceMetricForSeating = (stuId, scope = attendanceSeatScope) => {
@@ -4185,53 +4296,61 @@
           }
         }
 
-        const withMetrics = currentStudents.map((stu) => ({
-          stu,
-          m: getStudentAttendanceMetricForSeating(stu.id, customScope),
-        }));
+        // Tách riêng nhóm HS được ghim ngồi bàn đầu (cận thị / chiều cao thấp / hoàn cảnh)
+        const pinnedStudents = currentStudents.filter((s) => s.frontRowPinned);
+        const unpinnedStudents = currentStudents.filter((s) => !s.frontRowPinned);
 
-        // Sắp xếp từ chuyên cần kém nhất (nhiều vắng KP / điểm thấp) -> tốt nhất
-        const worstFirst = [...withMetrics].sort(
-          (a, b) =>
-            b.m.absentK - a.m.absentK ||
-            b.m.absentTotal - a.m.absentTotal ||
-            a.m.score - b.m.score ||
-            b.m.violations - a.m.violations
-        );
+        const sortByWorstAttendance = (arr) =>
+          arr
+            .map((stu) => ({ stu, m: getStudentAttendanceMetricForSeating(stu.id, customScope) }))
+            .sort(
+              (a, b) =>
+                b.m.absentK - a.m.absentK ||
+                b.m.absentTotal - a.m.absentTotal ||
+                a.m.score - b.m.score ||
+                b.m.violations - a.m.violations
+            );
 
-        let ordered = [];
+        const pinnedOrdered = sortByWorstAttendance(pinnedStudents);
+        const worstFirst = sortByWorstAttendance(unpinnedStudents);
+
+        let restOrdered = [];
         if (customStrategy === 'AT_RISK_FRONT') {
-          ordered = worstFirst;
+          restOrdered = worstFirst;
         } else if (customStrategy === 'GOOD_FRONT') {
-          ordered = [...worstFirst].reverse();
+          restOrdered = [...worstFirst].reverse();
         } else {
           // INTERLEAVE_BUDDY: Xen kẽ 1 HS chuyên cần xuất sắc ngồi cạnh 1 HS cần nhắc nhở chuyên cần
           const bestFirst = [...worstFirst].reverse();
           const usedIds = new Set();
           let lo = 0;
           let hi = 0;
-          while (ordered.length < withMetrics.length) {
+          while (restOrdered.length < unpinnedStudents.length) {
             while (hi < bestFirst.length && usedIds.has(bestFirst[hi].stu.id)) hi++;
             if (hi < bestFirst.length) {
-              ordered.push(bestFirst[hi]);
+              restOrdered.push(bestFirst[hi]);
               usedIds.add(bestFirst[hi].stu.id);
               hi++;
             }
             while (lo < worstFirst.length && usedIds.has(worstFirst[lo].stu.id)) lo++;
             if (lo < worstFirst.length) {
-              ordered.push(worstFirst[lo]);
+              restOrdered.push(worstFirst[lo]);
               usedIds.add(worstFirst[lo].stu.id);
               lo++;
             }
           }
         }
 
+        // Ghép danh sách cuối cùng: HS ghim bàn đầu luôn ở các bàn đầu tiên (Bàn 1 -> ...)
+        const ordered = [...pinnedOrdered, ...restOrdered];
+
         const assignMap = {};
         ordered.forEach((item, idx) => {
           const target = slots[idx];
-          // Phân tổ đều từ 1 -> activeTeamCount (nếu số tổ = số dãy thì khớp luôn theo dãy)
           const assignedTeam = target
-            ? tc === cols
+            ? seatLayoutConfig.teamGroupMode === 'BY_DESKS'
+              ? getTeamNumberForDesk(target.col, target.row, seatLayoutConfig)
+              : tc === cols
               ? target.col
               : Math.floor((idx * tc) / Math.max(1, ordered.length)) + 1
             : (idx % tc) + 1;
@@ -4262,7 +4381,9 @@
             : customStrategy === 'GOOD_FRONT'
             ? 'HS chuyên cần tốt nhất ngồi bàn đầu'
             : 'Xen kẽ 1 HS chuyên cần tốt kèm 1 HS cần nhắc nhở ngồi cạnh nhau';
-        showToast(`Đã xếp chỗ ngồi theo chuyên cần (${scopeLabel}: ${stratLabel}) và chia đều ${tc} tổ!`);
+        showToast(
+          `Đã xếp chỗ theo chuyên cần (${scopeLabel}: ${stratLabel})${pinnedStudents.length > 0 ? ` — Giữ ${pinnedStudents.length} HS ghim bàn đầu` : ''} & chia ${seatLayoutConfig.teamGroupMode === 'BY_DESKS' ? `${desksPerTeamCount} bàn/tổ (${tc} tổ)` : `${tc} tổ`}!`
+        );
       };
 
       const handleClearAllDesks = () => {
@@ -5406,14 +5527,45 @@
                           })))
                       )))))))
             )), (activeTab === 'SODO' && (
-              React.createElement("div", Object.assign({}, {"className": "space-y-4"}), React.createElement("div", Object.assign({}, {"className": "bg-white p-4 rounded-xl border border-[#e2dfd5] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"}), React.createElement("div", null, React.createElement("h2", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sơ Đồ Bàn Học & Ma Trận Ghép Đôi \"Đôi Bạn Cùng Tiến\" - ", (currentClassObj.name)), React.createElement("p", Object.assign({}, {"className": "text-xs text-slate-500 mt-0.5"}), "Hỗ trợ xếp chỗ ngồi thủ công hoặc ", React.createElement("strong", null, "Ghép cặp Đôi bạn cùng tiến (1 HS Giỏi kèm 1 HS Cần hỗ trợ ngồi chung bàn)"), " theo môn học và theo dõi tiến bộ.")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-2 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-300"}), React.createElement("span", Object.assign({}, {"className": "font-bold text-[#8f5c38]"}), "Số tổ:"), React.createElement("select", Object.assign({}, {"value": (activeTeamCount)}, {"onChange": ((e) => handleChangeTeamCount(Number(e.target.value)))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([2, 3, 4, 5, 6, 7, 8].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " tổ"))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "Dãy:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.cols)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, cols: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([2, 3, 4, 5, 6].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " dãy"))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "Bàn/dãy:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.desksPerCol)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, desksPerCol: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([4, 5, 6, 7, 8].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " bàn"))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "HS/bàn:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.seatsPerDesk)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, seatsPerDesk: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([1, 2, 3, 4].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " chỗ"))))), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleAutoPairAndSeatBuddies)}, {"className": "flex items-center gap-1.5 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-bold shadow-sm"}), React.createElement(Sparkles, Object.assign({}, {"className": "w-3.5 h-3.5"})), "Ghép Đôi Bạn Cùng Tiến & Xếp Bàn"), React.createElement("button", Object.assign({}, {"onClick": (handleAutoArrangeDesks)}, {"className": "px-3 py-1.5 bg-[#526d5d] text-white rounded-lg font-semibold"}), "Xếp tuần tự"), React.createElement("button", Object.assign({}, {"onClick": (handleClearAllDesks)}, {"className": "px-3 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] text-slate-700 rounded-lg font-semibold"}), "Làm trống"), React.createElement("button", Object.assign({}, {"onClick": (() => triggerPrintPDF('SEATING_CHART', 'SEATING_CHART'))}, {"className": "flex items-center gap-1.5 px-3 py-1.5 bg-[#183c42] text-white rounded-lg font-semibold"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In / Xuất PDF Sơ đồ"))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#183c42] text-amber-200 text-[10px] font-bold uppercase"}), "Xếp Chỗ Theo Chuyên Cần"), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sắp Xếp Chỗ Ngồi Tự Động Theo Mức Độ Chuyên Cần & Chia Đều ", (activeTeamCount), " Tổ")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Tự động phân tích điểm rèn luyện, số buổi nghỉ KP/Cúp tiết và đi muộn để xếp vị trí ngồi tối ưu cho GVCN giám sát và chia đều học sinh về ", (activeTeamCount), " tổ.")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5 text-[11px]"}), (teamNumberList.map((tNum) => {
+              React.createElement("div", Object.assign({}, {"className": "space-y-4"}), React.createElement("div", Object.assign({}, {"className": "bg-white p-4 rounded-xl border border-[#e2dfd5] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"}), React.createElement("div", null, React.createElement("h2", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sơ Đồ Bàn Học & Ma Trận Ghép Đôi \"Đôi Bạn Cùng Tiến\" - ", (currentClassObj.name)), React.createElement("p", Object.assign({}, {"className": "text-xs text-slate-500 mt-0.5"}), "Hỗ trợ xếp chỗ ngồi thủ công hoặc ", React.createElement("strong", null, "Ghép cặp Đôi bạn cùng tiến (1 HS Giỏi kèm 1 HS Cần hỗ trợ ngồi chung bàn)"), " theo môn học và theo dõi tiến bộ.")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-2 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-300"}), React.createElement("span", Object.assign({}, {"className": "font-bold text-[#8f5c38]"}), "Chia tổ:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.teamGroupMode === 'BY_DESKS' ? `DESK_${desksPerTeamCount}` : `COUNT_${activeTeamCount}`)}, {"onChange": ((e) => {
+                          const v = e.target.value;
+                          if (v.startsWith('DESK_')) {
+                            handleApplyDesksPerTeamMode(Number(v.replace('DESK_', '')));
+                          } else {
+                            handleChangeTeamCount(Number(v.replace('COUNT_', '')));
+                          }
+                        })}, {"className": "font-bold text-[#183c42] bg-transparent"}), React.createElement("option", Object.assign({}, {"value": "DESK_3"}), "⭐ 3 bàn / 1 tổ (", (computedTeamsByDesks), " tổ)"), React.createElement("option", Object.assign({}, {"value": "DESK_2"}), "2 bàn / 1 tổ"), React.createElement("option", Object.assign({}, {"value": "DESK_4"}), "4 bàn / 1 tổ"), ([2, 3, 4, 5, 6, 7, 8].map((n) => (
+                          React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (`COUNT_${n}`)}), "Chia đều ", (n), " tổ")
+                        ))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "Dãy:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.cols)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, cols: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([2, 3, 4, 5, 6].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " dãy"))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "Bàn/dãy:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.desksPerCol)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, desksPerCol: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([4, 5, 6, 7, 8].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " bàn"))))), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1 bg-[#f6f5ef] px-2.5 py-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-semibold"}), "HS/bàn:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.seatsPerDesk)}, {"onChange": ((e) => setSeatLayoutConfig((p) => ({ ...p, seatsPerDesk: Number(e.target.value) })))}, {"className": "font-bold text-[#183c42] bg-transparent"}), ([1, 2, 3, 4].map((n) => React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " chỗ"))))), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleAutoPairAndSeatBuddies)}, {"className": "flex items-center gap-1.5 px-3 py-1.5 bg-[#8f5c38] hover:bg-[#774b2d] text-white rounded-lg font-bold shadow-sm"}), React.createElement(Sparkles, Object.assign({}, {"className": "w-3.5 h-3.5"})), "Ghép Đôi Bạn Cùng Tiến & Xếp Bàn"), React.createElement("button", Object.assign({}, {"onClick": (handleAutoArrangeDesks)}, {"className": "px-3 py-1.5 bg-[#526d5d] text-white rounded-lg font-semibold"}), "Xếp tuần tự"), React.createElement("button", Object.assign({}, {"onClick": (handleClearAllDesks)}, {"className": "px-3 py-1.5 bg-[#f6f5ef] border border-[#dcd8cb] text-slate-700 rounded-lg font-semibold"}), "Làm trống"), React.createElement("button", Object.assign({}, {"onClick": (() => triggerPrintPDF('SEATING_CHART', 'SEATING_CHART'))}, {"className": "flex items-center gap-1.5 px-3 py-1.5 bg-[#183c42] text-white rounded-lg font-semibold"}), React.createElement(Printer, Object.assign({}, {"className": "w-3.5 h-3.5"})), "In / Xuất PDF Sơ đồ"))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#183c42] text-amber-200 text-[10px] font-bold uppercase"}), "Xếp Chỗ Theo Chuyên Cần"), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Sắp Xếp Chỗ Ngồi Tự Động Theo Mức Độ Chuyên Cần & Chia Đều ", (activeTeamCount), " Tổ")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Tự động phân tích điểm rèn luyện, số buổi nghỉ KP/Cúp tiết và đi muộn để xếp vị trí ngồi tối ưu cho GVCN giám sát và chia đều học sinh về ", (activeTeamCount), " tổ.")), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5 text-[11px]"}), (teamNumberList.map((tNum) => {
                         const cnt = currentStudents.filter((s) => (Number(s.team) || 1) === tNum).length;
                         return (
                           React.createElement("span", Object.assign({}, {"key": (tNum)}, {"className": "px-2 py-0.5 rounded bg-[#f6f5ef] border border-[#dcd8cb] font-bold text-[#183c42]"}), "Tổ ", (tNum), ": ", (cnt), " HS")
                         );
-                      })))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end bg-[#faf9f5] p-3 rounded-xl border border-[#e2dfd5]"}), React.createElement("div", Object.assign({}, {"className": "md:col-span-3"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "1. Phạm vi xét chuyên cần:"), React.createElement("select", Object.assign({}, {"value": (attendanceSeatScope)}, {"onChange": ((e) => setAttendanceSeatScope(e.target.value))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "MONTH"}), "Theo Tháng ", (selectedReportMonth), " (Mặc định)"), React.createElement("option", Object.assign({}, {"value": "WEEK"}), "Theo Tuần ", (selectedWeek), " hiện tại"), React.createElement("option", Object.assign({}, {"value": "YEAR"}), "Theo Lũy kế Cả năm học"))), React.createElement("div", Object.assign({}, {"className": "md:col-span-5"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "2. Quy tắc sắp xếp chỗ ngồi theo chuyên cần:"), React.createElement("select", Object.assign({}, {"value": (attendanceSeatStrategy)}, {"onChange": ((e) => setAttendanceSeatStrategy(e.target.value))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "AT_RISK_FRONT"}), "Ưu tiên bàn đầu cho HS hay vắng / điểm RL thấp (GV sát sao)"), React.createElement("option", Object.assign({}, {"value": "INTERLEAVE_BUDDY"}), "Xen kẽ 1 HS chuyên cần xuất sắc ngồi cạnh 1 HS hay vắng để nhắc nhở"), React.createElement("option", Object.assign({}, {"value": "GOOD_FRONT"}), "Xếp HS chuyên cần cao nhất lên bàn đầu (Khích lệ thi đua)"))), React.createElement("div", Object.assign({}, {"className": "md:col-span-2"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#8f5c38] mb-1"}), "3. Chia thành số tổ:"), React.createElement("select", Object.assign({}, {"value": (activeTeamCount)}, {"onChange": ((e) => handleChangeTeamCount(Number(e.target.value)))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-[#183c42]"}), ([2, 3, 4, 5, 6, 7, 8].map((n) => (
-                          React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (n)}), (n), " Tổ thi đua")
-                        ))))), React.createElement("div", Object.assign({}, {"className": "md:col-span-2"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => handleAutoArrangeByAttendance(attendanceSeatScope, attendanceSeatStrategy))}, {"className": "w-full py-1.5 px-3 bg-[#183c42] hover:bg-[#24525a] text-white rounded-lg font-bold shadow-sm"}), "⚡ Xếp Theo Chuyên Cần")))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#8f5c38] text-white text-[10px] font-bold uppercase"}), "Mô hình Đôi Bạn Cùng Tiến"), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Danh Sách Các Cặp \"Đôi Bạn Cùng Tiến\" Đang Ngồi Cùng Bàn (", (currentPeerPairs.length), " cặp)")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Mỗi cặp gồm 1 Học sinh Nòng cốt (Khá/Giỏi) ngồi cạnh 1 Học sinh Cần hỗ trợ tại cùng 1 bàn để kèm môn ", React.createElement("strong", null, (selectedSubject)), " và nhắc nhở chuyên cần.")), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "font-semibold text-slate-700"}), "Môn trọng tâm ghép đôi:"), React.createElement("select", Object.assign({}, {"value": (selectedSubject)}, {"onChange": ((e) => setSelectedSubject(e.target.value))}, {"className": "px-2.5 py-1 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-bold text-[#183c42]"}), (currentSubjects.map((s) => React.createElement("option", Object.assign({}, {"key": (s)}, {"value": (s)}), (s))))), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleAutoPairAndSeatBuddies)}, {"className": "px-3 py-1.5 bg-[#183c42] hover:bg-[#24525a] text-white rounded-lg font-semibold"}), "⚡ Tự động ghép cặp theo môn ", (selectedSubject)))), React.createElement("form", Object.assign({}, {"onSubmit": (handleAddCustomPeerPair)}, {"className": "grid grid-cols-1 md:grid-cols-6 gap-2 bg-[#faf9f5] p-3 rounded-xl border border-[#e2dfd5] items-end"}), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "HS Kèm cặp (Nòng cốt)"), React.createElement("select", Object.assign({}, {"value": (customPairForm.mentorId)}, {"onChange": ((e) => setCustomPairForm((p) => ({ ...p, mentorId: e.target.value })))}, {"className": "w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"}), React.createElement("option", Object.assign({}, {"value": ""}), "-- Chọn HS kèm --"), (currentStudents.map((s) => {
+                      })))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end bg-[#faf9f5] p-3 rounded-xl border border-[#e2dfd5]"}), React.createElement("div", Object.assign({}, {"className": "md:col-span-3"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "1. Phạm vi xét chuyên cần:"), React.createElement("select", Object.assign({}, {"value": (attendanceSeatScope)}, {"onChange": ((e) => setAttendanceSeatScope(e.target.value))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "MONTH"}), "Theo Tháng ", (selectedReportMonth), " (Mặc định)"), React.createElement("option", Object.assign({}, {"value": "WEEK"}), "Theo Tuần ", (selectedWeek), " hiện tại"), React.createElement("option", Object.assign({}, {"value": "YEAR"}), "Theo Lũy kế Cả năm học"))), React.createElement("div", Object.assign({}, {"className": "md:col-span-5"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "2. Quy tắc sắp xếp chỗ ngồi theo chuyên cần:"), React.createElement("select", Object.assign({}, {"value": (attendanceSeatStrategy)}, {"onChange": ((e) => setAttendanceSeatStrategy(e.target.value))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "AT_RISK_FRONT"}), "Ưu tiên bàn đầu cho HS hay vắng / điểm RL thấp (GV sát sao)"), React.createElement("option", Object.assign({}, {"value": "INTERLEAVE_BUDDY"}), "Xen kẽ 1 HS chuyên cần xuất sắc ngồi cạnh 1 HS hay vắng để nhắc nhở"), React.createElement("option", Object.assign({}, {"value": "GOOD_FRONT"}), "Xếp HS chuyên cần cao nhất lên bàn đầu (Khích lệ thi đua)"))), React.createElement("div", Object.assign({}, {"className": "md:col-span-2"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#8f5c38] mb-1"}), "3. Kiểu chia tổ:"), React.createElement("select", Object.assign({}, {"value": (seatLayoutConfig.teamGroupMode === 'BY_DESKS' ? `DESK_${desksPerTeamCount}` : `COUNT_${activeTeamCount}`)}, {"onChange": ((e) => {
+                          const v = e.target.value;
+                          if (v.startsWith('DESK_')) handleApplyDesksPerTeamMode(Number(v.replace('DESK_', '')));
+                          else handleChangeTeamCount(Number(v.replace('COUNT_', '')));
+                        })}, {"className": "w-full px-2 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-[#183c42]"}), React.createElement("option", Object.assign({}, {"value": "DESK_3"}), "⭐ 3 bàn / 1 tổ"), React.createElement("option", Object.assign({}, {"value": "DESK_2"}), "2 bàn / 1 tổ"), React.createElement("option", Object.assign({}, {"value": "DESK_4"}), "4 bàn / 1 tổ"), ([2, 3, 4, 5, 6, 7, 8].map((n) => (
+                          React.createElement("option", Object.assign({}, {"key": (n)}, {"value": (`COUNT_${n}`)}), "Chia đều ", (n), " tổ")
+                        ))))), React.createElement("div", Object.assign({}, {"className": "md:col-span-2"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => handleAutoArrangeByAttendance(attendanceSeatScope, attendanceSeatStrategy))}, {"className": "w-full py-1.5 px-3 bg-[#183c42] hover:bg-[#24525a] text-white rounded-lg font-bold shadow-sm"}), "⚡ Xếp Theo Chuyên Cần")))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-amber-300 rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-amber-200 pb-2"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-amber-600 text-white text-[10px] font-bold uppercase"}), "📌 Ghim Bàn Đầu Ưu Tiên"), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Danh Sách Học Sinh Ghim Ngồi Bàn Đầu (", (currentStudents.filter((s) => s.frontRowPinned).length), " HS)")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-600 mt-0.5"}), "Các học sinh bị ", React.createElement("strong", null, "cận thị không nhìn thấy bảng"), ", ", React.createElement("strong", null, "chiều cao thấp"), " hoặc hoàn cảnh đặc biệt sẽ luôn được giữ ở ", React.createElement("strong", null, "các bàn đầu tiên"), " mỗi khi xếp chỗ tự động."))), React.createElement("form", Object.assign({}, {"onSubmit": ((e) => {
+                      e.preventDefault();
+                      const targetId = pinFrontForm.studentId || currentStudents[0]?.id;
+                      if (!targetId) return;
+                      handleTogglePinFrontRow(targetId, pinFrontForm.reason || 'Cận thị / Không nhìn thấy bảng');
+                      const st = currentStudents.find((x) => x.id === targetId);
+                      showToast(`Đã ghim em ${st?.name || ''} ưu tiên ngồi bàn đầu (${pinFrontForm.reason})!`);
+                    })}, {"className": "grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-amber-50/60 p-3 rounded-xl border border-amber-200"}), React.createElement("div", Object.assign({}, {"className": "md:col-span-4"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "Chọn Học sinh cần ghim bàn đầu:"), React.createElement("select", Object.assign({}, {"value": (pinFrontForm.studentId || currentStudents[0]?.id || '')}, {"onChange": ((e) => setPinFrontForm((p) => ({ ...p, studentId: e.target.value })))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-bold text-[#183c42]"}), (currentStudents.map((s) => (
+                          React.createElement("option", Object.assign({}, {"key": (s.id)}, {"value": (s.id)}), (s.name), " ", (s.frontRowPinned ? '(Đã ghim 📌)' : ''))
+                        ))))), React.createElement("div", Object.assign({}, {"className": "md:col-span-3"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-semibold text-slate-700 mb-1"}), "Chọn nhanh lý do hoàn cảnh:"), React.createElement("select", Object.assign({}, {"value": (pinFrontForm.reason)}, {"onChange": ((e) => setPinFrontForm((p) => ({ ...p, reason: e.target.value })))}, {"className": "w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-semibold"}), React.createElement("option", Object.assign({}, {"value": "Cận thị / Không nhìn thấy bảng"}), "Cận thị / Không nhìn thấy bảng"), React.createElement("option", Object.assign({}, {"value": "Chiều cao thấp"}), "Chiều cao thấp"), React.createElement("option", Object.assign({}, {"value": "Cận thị & Chiều cao thấp"}), "Cận thị & Chiều cao thấp"), React.createElement("option", Object.assign({}, {"value": "Khó nghe / Cần ngồi gần GV"}), "Khó nghe / Cần ngồi gần GV"), React.createElement("option", Object.assign({}, {"value": "Cần GVCN quan sát sát sao"}), "Cần GVCN quan sát sát sao"))), React.createElement("div", Object.assign({}, {"className": "md:col-span-3"}), React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-semibold text-slate-700 mb-1"}), "Hoặc nhập ghi chú hoàn cảnh riêng:"), React.createElement("input", Object.assign({}, {"type": "text"}, {"value": (pinFrontForm.reason)}, {"onChange": ((e) => setPinFrontForm((p) => ({ ...p, reason: e.target.value })))}, {"placeholder": "VD: Cận 4 độ, ngồi xa không thấy bảng"}, {"className": "w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg"}))), React.createElement("div", Object.assign({}, {"className": "md:col-span-2"}), React.createElement("button", Object.assign({}, {"type": "submit"}, {"className": "w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold"}), "📌 Ghim Bàn Đầu"))), (currentStudents.filter((s) => s.frontRowPinned).length > 0 && (
+                    React.createElement("div", Object.assign({}, {"className": "flex flex-wrap gap-2"}), (currentStudents
+                        .filter((s) => s.frontRowPinned)
+                        .map((s) => (
+                          React.createElement("div", Object.assign({}, {"key": (s.id)}, {"className": "inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-400 text-[#183c42]"}), React.createElement("span", Object.assign({}, {"className": "font-bold"}), "📌 ", (s.name)), React.createElement("span", Object.assign({}, {"className": "text-[11px] text-amber-900"}), "(", (s.frontRowReason || 'Ưu tiên bàn đầu'), ")"), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => {
+                                handleTogglePinFrontRow(s.id);
+                                showToast(`Đã bỏ ghim bàn đầu cho em ${s.name}.`);
+                              })}, {"className": "text-red-700 hover:text-red-900 font-bold px-1"}, {"title": "Bỏ ghim bàn đầu"}), "✕"))
+                        ))))
+                  ))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl p-4 space-y-3 text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center justify-between gap-2 border-b border-[#ece9df] pb-2.5"}), React.createElement("div", null, React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "px-2 py-0.5 rounded bg-[#8f5c38] text-white text-[10px] font-bold uppercase"}), "Mô hình Đôi Bạn Cùng Tiến"), React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Danh Sách Các Cặp \"Đôi Bạn Cùng Tiến\" Đang Ngồi Cùng Bàn (", (currentPeerPairs.length), " cặp)")), React.createElement("p", Object.assign({}, {"className": "text-[11px] text-slate-500 mt-0.5"}), "Mỗi cặp gồm 1 Học sinh Nòng cốt (Khá/Giỏi) ngồi cạnh 1 Học sinh Cần hỗ trợ tại cùng 1 bàn để kèm môn ", React.createElement("strong", null, (selectedSubject)), " và nhắc nhở chuyên cần.")), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-2"}), React.createElement("span", Object.assign({}, {"className": "font-semibold text-slate-700"}), "Môn trọng tâm ghép đôi:"), React.createElement("select", Object.assign({}, {"value": (selectedSubject)}, {"onChange": ((e) => setSelectedSubject(e.target.value))}, {"className": "px-2.5 py-1 bg-[#f6f5ef] border border-[#dcd8cb] rounded-lg font-bold text-[#183c42]"}), (currentSubjects.map((s) => React.createElement("option", Object.assign({}, {"key": (s)}, {"value": (s)}), (s))))), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleAutoPairAndSeatBuddies)}, {"className": "px-3 py-1.5 bg-[#183c42] hover:bg-[#24525a] text-white rounded-lg font-semibold"}), "⚡ Tự động ghép cặp theo môn ", (selectedSubject)))), React.createElement("form", Object.assign({}, {"onSubmit": (handleAddCustomPeerPair)}, {"className": "grid grid-cols-1 md:grid-cols-6 gap-2 bg-[#faf9f5] p-3 rounded-xl border border-[#e2dfd5] items-end"}), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#183c42] mb-1"}), "HS Kèm cặp (Nòng cốt)"), React.createElement("select", Object.assign({}, {"value": (customPairForm.mentorId)}, {"onChange": ((e) => setCustomPairForm((p) => ({ ...p, mentorId: e.target.value })))}, {"className": "w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"}), React.createElement("option", Object.assign({}, {"value": ""}), "-- Chọn HS kèm --"), (currentStudents.map((s) => {
                           const avg = calculateSubjectAverage(getStudentSubjectScoreObj(s.id, selectedSubject, semester)) ?? getStudentOverallGPA(s.id);
                           return React.createElement("option", Object.assign({}, {"key": (s.id)}, {"value": (s.id)}), (s.name), " (ĐTB: ", (avg ?? '--'), ")");
                         })))), React.createElement("div", null, React.createElement("label", Object.assign({}, {"className": "block text-[11px] font-bold text-[#8f5c38] mb-1"}), "HS Được kèm (Cần hỗ trợ)"), React.createElement("select", Object.assign({}, {"value": (customPairForm.menteeId)}, {"onChange": ((e) => setCustomPairForm((p) => ({ ...p, menteeId: e.target.value })))}, {"className": "w-full px-2 py-1.5 bg-white border border-[#dcd8cb] rounded-lg font-semibold"}), React.createElement("option", Object.assign({}, {"value": ""}), "-- Chọn HS được kèm --"), (currentStudents.map((s) => {
@@ -5460,7 +5612,9 @@
                                 pairedBuddyOnDesk
                                   ? 'border-[#8f5c38] bg-amber-50/40 shadow-sm'
                                   : 'border-[#d6d2c4] bg-[#faf9f5]'
-                              }`)}), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between text-[11px] font-bold text-slate-600"}), React.createElement("span", Object.assign({}, {"className": "flex items-center gap-1"}), React.createElement("span", null, "BÀN ", (deskNum)), (pairedBuddyOnDesk && (
+                              }`)}), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between text-[11px] font-bold text-slate-600"}), React.createElement("span", Object.assign({}, {"className": "flex items-center gap-1"}), React.createElement("span", null, "BÀN ", (deskNum)), (seatLayoutConfig.teamGroupMode === 'BY_DESKS' && (
+                                    React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-[#183c42] text-amber-200 text-[9px] font-bold"}), "Tổ ", (getTeamNumberForDesk(colNum, deskNum, seatLayoutConfig)))
+                                  )), (pairedBuddyOnDesk && (
                                     React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-[#8f5c38] text-white text-[9px] font-bold"}), "🤝 Đôi bạn cùng tiến")
                                   ))), React.createElement("span", null, "Dãy ", (colNum))), React.createElement("div", Object.assign({}, {"className": (`grid gap-2 ${seatLayoutConfig.seatsPerDesk === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`)}), (Array.from({ length: seatLayoutConfig.seatsPerDesk }, (_, sIdx) => sIdx + 1).map((seatPos) => {
                                   const slotKey = `${colNum}-${deskNum}-${seatPos}`;
@@ -5495,7 +5649,20 @@
                                                   : attM.absentTotal > 0 || attM.score < 95
                                                   ? 'bg-amber-100 text-amber-800'
                                                   : 'bg-emerald-50 text-emerald-800'
-                                              }`)}), "CC: ", (attM.score), "đ ", (attM.absentTotal > 0 ? `(${attM.absentTotal}v)` : '')), React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-[#efeee6] text-[#183c42] font-bold"}), "Tổ ", (seatedStu.team || 1))), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between"}), React.createElement("span", Object.assign({}, {"className": "text-slate-600 font-medium"}), "ĐTB ", (selectedSubject), ":", (' '), React.createElement("strong", Object.assign({}, {"className": "text-[#183c42]"}), (calculateSubjectAverage(getStudentSubjectScoreObj(seatedStu.id, selectedSubject, semester)) ?? '--'))), (pairedBuddyOnDesk && pairedBuddyOnDesk.mentorId === seatedStu.id && (
+                                              }`)}), "CC: ", (attM.score), "đ ", (attM.absentTotal > 0 ? `(${attM.absentTotal}v)` : '')), React.createElement("div", Object.assign({}, {"className": "flex items-center gap-1"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => {
+                                                    handleTogglePinFrontRow(seatedStu.id);
+                                                    showToast(
+                                                      seatedStu.frontRowPinned
+                                                        ? `Đã bỏ ghim bàn đầu cho ${seatedStu.name}.`
+                                                        : `Đã ghim ${seatedStu.name} ưu tiên ngồi bàn đầu (Cận thị / Chiều cao)!`
+                                                    );
+                                                  })}, {"title": (seatedStu.frontRowPinned ? `Đang ghim bàn đầu: ${seatedStu.frontRowReason || 'Ưu tiên'}` : 'Ghim HS này ngồi bàn đầu')}, {"className": (`px-1 py-0.2 rounded font-bold border ${
+                                                    seatedStu.frontRowPinned
+                                                      ? 'bg-amber-500 text-white border-amber-600'
+                                                      : 'bg-white text-slate-400 border-stone-200 hover:text-amber-700'
+                                                  }`)}), "📌"), React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-[#efeee6] text-[#183c42] font-bold"}), "Tổ ", (seatedStu.team || 1)))), (seatedStu.frontRowPinned && (
+                                              React.createElement("div", Object.assign({}, {"className": "px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 font-semibold truncate"}), "📌 Bàn đầu: ", (seatedStu.frontRowReason || 'Ưu tiên'))
+                                            )), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between"}), React.createElement("span", Object.assign({}, {"className": "text-slate-600 font-medium"}), "ĐTB ", (selectedSubject), ":", (' '), React.createElement("strong", Object.assign({}, {"className": "text-[#183c42]"}), (calculateSubjectAverage(getStudentSubjectScoreObj(seatedStu.id, selectedSubject, semester)) ?? '--'))), (pairedBuddyOnDesk && pairedBuddyOnDesk.mentorId === seatedStu.id && (
                                                 React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold"}), "★ Kèm bạn")
                                               )), (pairedBuddyOnDesk && pairedBuddyOnDesk.menteeId === seatedStu.id && (
                                                 React.createElement("span", Object.assign({}, {"className": "px-1.5 py-0.2 rounded bg-amber-100 text-[#8f5c38] font-bold"}), "▲ Được kèm")
@@ -6423,11 +6590,15 @@
               
               React.createElement("div", Object.assign({}, {"className": "p-5 max-w-4xl mx-auto border-2 border-black bg-white text-xs"}), React.createElement("div", Object.assign({}, {"className": "text-center border-b-2 border-black pb-2 mb-3"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), (schoolName), " • LỚP ", (currentClassObj.name)), React.createElement("h1", Object.assign({}, {"className": "text-base font-extrabold uppercase mt-1"}), "SƠ ĐỒ VỊ TRÍ CHỖ NGỒI & ĐÔI BẠN CÙNG TIẾN (", (schoolYear), ")"), React.createElement("div", Object.assign({}, {"className": "text-[11px]"}), "GVCN: ", React.createElement("strong", null, (teacherName)))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-4 gap-3"}), (Array.from({ length: seatLayoutConfig.cols }, (_, cIdx) => cIdx + 1).map((colNum) => (
                     React.createElement("div", Object.assign({}, {"key": (colNum)}, {"className": "border border-black p-2"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-center uppercase border-b border-black pb-1 mb-2"}), "Dãy ", (colNum), " ", (activeTeamCount === seatLayoutConfig.cols ? `(Tổ ${colNum})` : `(${activeTeamCount} Tổ)`)), (Array.from({ length: seatLayoutConfig.desksPerCol }, (_, rIdx) => rIdx + 1).map((rowNum) => (
-                        React.createElement("div", Object.assign({}, {"key": (rowNum)}, {"className": "border border-stone-400 p-1.5 mb-1.5 text-[10px]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-stone-600"}), "Bàn ", (rowNum), ":"), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 gap-1 mt-0.5"}), (Array.from({ length: seatLayoutConfig.seatsPerDesk }, (_, sIdx) => sIdx + 1).map((seatNum) => {
+                        React.createElement("div", Object.assign({}, {"key": (rowNum)}, {"className": "border border-stone-400 p-1.5 mb-1.5 text-[10px]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-stone-600 flex justify-between"}), React.createElement("span", null, "Bàn ", (rowNum), ":"), (seatLayoutConfig.teamGroupMode === 'BY_DESKS' && (
+                              React.createElement("span", null, "Tổ ", (getTeamNumberForDesk(colNum, rowNum, seatLayoutConfig)))
+                            ))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 gap-1 mt-0.5"}), (Array.from({ length: seatLayoutConfig.seatsPerDesk }, (_, sIdx) => sIdx + 1).map((seatNum) => {
                               const slotKey = `${colNum}-${rowNum}-${seatNum}`;
                               const occupant = currentStudents.find((s) => s.deskSlot === slotKey);
                               return (
-                                React.createElement("div", Object.assign({}, {"key": (seatNum)}, {"className": "p-1 border border-stone-300 font-semibold truncate"}), (occupant ? `${occupant.name} (Tổ ${occupant.team || 1})` : '(Trống)'))
+                                React.createElement("div", Object.assign({}, {"key": (seatNum)}, {"className": "p-1 border border-stone-300 font-semibold truncate"}), (occupant
+                                    ? `${occupant.frontRowPinned ? '📌 ' : ''}${occupant.name} (Tổ ${occupant.team || 1})`
+                                    : '(Trống)'))
                               );
                             }))))
                       ))))
