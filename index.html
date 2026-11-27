@@ -2513,6 +2513,8 @@
         let skipClassCT = 0;
         let totalAbsentK = 0;
         let totalLate = 0;
+        let lateSHDC = 0;
+        let absentSHDC = 0;
         let repeatMinorCount = 0;
         let totalPlus = 0;
         let totalViolations = 0;
@@ -2542,9 +2544,19 @@
                 }
                 if (typeObj.points > 0) totalPlus += 1;
                 if (typeObj.points < 0 && code !== 'P' && eq !== 'P') totalViolations += 1;
+                const isT2LateSHDC = d.key === 'T2' && code === 'M';
+                const isT2AbsentSHDC = d.key === 'T2' && (code === 'K' || code === 'P' || code === 'CT' || eq === 'K' || eq === 'P');
+                if (isT2LateSHDC) lateSHDC += 1;
+                if (isT2AbsentSHDC) absentSHDC += 1;
+
                 if (typeObj.points < 0) {
                   const tagNote = (code === 'CT' || (eq === 'K' && code !== 'K')) ? ' [Tính lũy kế = Nghỉ KP]' : '';
-                  detailList.push(`${d.label} (${ses.shortLabel}): [${code}] ${typeObj.label}${tagNote}`);
+                  const shdcTag = isT2AbsentSHDC
+                    ? ' → Vắng SHDC (CẦN NHẮC NHỞ GẤP)'
+                    : isT2LateSHDC
+                    ? ' → Trễ SHDC (CẦN NHẮC NHỞ GẤP)'
+                    : '';
+                  detailList.push(`${d.label} (${ses.shortLabel}): [${code}] ${typeObj.label}${tagNote}${shdcTag}`);
                 }
               }
             });
@@ -2554,6 +2566,12 @@
         // Quy đổi nhắc nhở khi tái phạm lỗi tương đương nghỉ có phép / không phép nhiều lần
         const convertedAbsentFromRepeats = Math.floor(repeatMinorCount / 2);
         const equivWarningLabels = [];
+        if (absentSHDC > 0) {
+          equivWarningLabels.push(`🚨 Vắng SHDC Thứ 2 (${absentSHDC} lượt — CẦN NHẮC NHỞ GẤP)`);
+        }
+        if (lateSHDC > 0) {
+          equivWarningLabels.push(`⚠️ Trễ SHDC Thứ 2 (${lateSHDC} lượt — CẦN NHẮC NHỞ GẤP)`);
+        }
         if (skipClassCT > 0) {
           equivWarningLabels.push(`🚨 Cúp tiết nghiêm trọng (${skipClassCT} lần → Tính = ${skipClassCT} buổi Nghỉ KP lũy kế)`);
         }
@@ -2583,6 +2601,8 @@
           skipClassCT,
           totalAbsentK,
           totalLate,
+          lateSHDC,
+          absentSHDC,
           repeatMinorCount,
           convertedAbsentFromRepeats,
           equivWarningLabels,
@@ -2657,7 +2677,14 @@
                 if (typeObj && typeObj.points < 0) {
                   const eq = typeObj.equivAbsent || (code === 'K' || code === 'CT' ? 'K' : code === 'P' ? 'P' : 'REPEAT_WARN');
                   const equivNote = code === 'CT' || (eq === 'K' && code !== 'K') ? ' [Tính lũy kế = Nghỉ KP]' : '';
-                  const detailStr = `Tuần ${wNum} - ${d.label}${vnDateStr ? ' (' + vnDateStr + ')' : ''} - ${ses.shortLabel}: [${code}] ${typeObj.label}${equivNote}`;
+                  const isT2LateSHDC = d.key === 'T2' && code === 'M';
+                  const isT2AbsentSHDC = d.key === 'T2' && (code === 'K' || code === 'P' || code === 'CT' || eq === 'K' || eq === 'P');
+                  const shdcNote = isT2AbsentSHDC
+                    ? ' [Vắng SHDC — Cần nhắc nhở gấp]'
+                    : isT2LateSHDC
+                    ? ' [Trễ SHDC — Cần nhắc nhở gấp]'
+                    : '';
+                  const detailStr = `Tuần ${wNum} - ${d.label}${vnDateStr ? ' (' + vnDateStr + ')' : ''} - ${ses.shortLabel}: [${code}] ${typeObj.label}${equivNote}${shdcNote}`;
                   allMonthDetails.push(detailStr);
                   allMonthDetailRows.push({
                     weekNum: wNum,
@@ -2665,14 +2692,17 @@
                     vnDate: vnDateStr,
                     sessionLabel: ses.shortLabel,
                     code,
-                    label: typeObj.label + equivNote,
+                    label: typeObj.label + equivNote + shdcNote,
                     points: Number(typeObj.points || 0),
-                    remark:
-                      code === 'K' || code === 'CT' || eq === 'K'
-                        ? 'Nghỉ KP / Cúp tiết (tính vào lũy kế) — PH cần xác nhận & đôn đốc đi học.'
-                        : code === 'P' || eq === 'P'
-                        ? 'Nghỉ có phép — Nhắc học sinh chép bài và hoàn thành bài tập.'
-                        : 'Vi phạm nề nếp — Yêu cầu học sinh nghiêm túc khắc phục, không tái phạm.',
+                    remark: isT2AbsentSHDC
+                      ? '🚨 Vắng SHDC Thứ 2 — CẦN NHẮC NHỞ GẤP! Phụ huynh & HS cần nghiêm túc chấn chỉnh dự lễ Chào cờ đầu tuần.'
+                      : isT2LateSHDC
+                      ? '⚠️ Trễ SHDC Thứ 2 — CẦN NHẮC NHỞ GẤP! Nhắc học sinh đi sớm đúng giờ dự Sinh hoạt dưới cờ.'
+                      : code === 'K' || code === 'CT' || eq === 'K'
+                      ? 'Nghỉ KP / Cúp tiết (tính vào lũy kế) — PH cần xác nhận & đôn đốc đi học.'
+                      : code === 'P' || eq === 'P'
+                      ? 'Nghỉ có phép — Nhắc học sinh chép bài và hoàn thành bài tập.'
+                      : 'Vi phạm nề nếp — Yêu cầu học sinh nghiêm túc khắc phục, không tái phạm.',
                   });
                 }
               });
@@ -3465,7 +3495,12 @@
             const codes = getStudentDaySessionCodes(stu.id, d.key, ses.key, selectedWeek);
             codes.forEach((c) => {
               const t = attendanceTypes.find((x) => x.id === c);
-              if (t && t.points < 0) weekViolations.push(`${d.label} (${ses.shortLabel}): ${t.label}`);
+              if (t && t.points < 0) {
+                const isT2Abs = d.key === 'T2' && (c === 'K' || c === 'P' || c === 'CT' || t.equivAbsent === 'K' || t.equivAbsent === 'P');
+                const isT2Late = d.key === 'T2' && c === 'M';
+                const shdcSuffix = isT2Abs ? ' [Vắng SHDC - CẦN NHẮC NHỞ GẤP]' : isT2Late ? ' [Trễ SHDC - CẦN NHẮC NHỞ GẤP]' : '';
+                weekViolations.push(`${d.label} (${ses.shortLabel}): ${t.label}${shdcSuffix}`);
+              }
             });
           });
         });
@@ -4522,7 +4557,7 @@
           }
         });
 
-        const isLowConductWeek = wCond.score < 95 || wCond.totalAbsentK > 0 || wCond.totalAbsentP >= 2 || wCond.repeatMinorCount >= 2;
+        const isLowConductWeek = wCond.score < 95 || wCond.totalAbsentK > 0 || wCond.totalAbsentP >= 2 || wCond.repeatMinorCount >= 2 || wCond.absentSHDC > 0 || wCond.lateSHDC > 0;
         const isLowAcademic = lowAcademicSubjects.length > 0 || (gpaSem !== null && gpaSem < 6.5);
         const needsWeeklyReminder = isLowConductWeek || isLowAcademic;
 
@@ -4542,6 +4577,12 @@
         }
 
         const reminderReasons = [];
+        if (wCond.absentSHDC > 0) {
+          reminderReasons.push(`🚨 Vắng SHDC Thứ 2 (${wCond.absentSHDC} lượt) — CẦN NHẮC NHỞ GẤP`);
+        }
+        if (wCond.lateSHDC > 0) {
+          reminderReasons.push(`⚠️ Trễ SHDC Thứ 2 (${wCond.lateSHDC} lượt) — CẦN NHẮC NHỞ GẤP`);
+        }
         if (wCond.score < 95) {
           reminderReasons.push(`Điểm rèn luyện Tuần ${weekNum} thấp (${wCond.score}/100đ - ${wCond.rank})`);
         }
@@ -4611,12 +4652,21 @@
             codes.map((code) => {
               const t = attendanceTypes.find((x) => x.id === code) || { id: code, label: code, points: 0 };
               const ptsTxt = t.points > 0 ? `+${t.points}đ` : `${t.points}đ`;
+              const isT2Abs = d.key === 'T2' && (t.id === 'K' || t.id === 'P' || t.id === 'CT' || t.equivAbsent === 'K' || t.equivAbsent === 'P');
+              const isT2Late = d.key === 'T2' && t.id === 'M';
+              const shdcLabel = isT2Abs
+                ? `${t.label} → Vắng SHDC (Nhắc gấp)`
+                : isT2Late
+                ? `${t.label} → Trễ SHDC (Nhắc gấp)`
+                : t.label;
               return {
                 id: t.id,
-                label: t.label,
+                label: shdcLabel,
                 points: Number(t.points || 0),
                 sessionLabel,
-                formatted: `[${t.id}] ${t.label} (${ptsTxt})`,
+                isT2Abs,
+                isT2Late,
+                formatted: `[${t.id}] ${shdcLabel} (${ptsTxt})`,
               };
             });
 
@@ -4631,8 +4681,15 @@
           const hasUnexcused = allItems.some((x) => x.id === 'K' || x.id === 'CT');
           const hasExcused = allItems.some((x) => x.id === 'P');
 
+          const hasT2AbsSHDC = allItems.some((x) => x.isT2Abs);
+          const hasT2LateSHDC = allItems.some((x) => x.isT2Late);
           let dayComment = 'Đi học đầy đủ, đúng giờ; chấp hành tốt nội quy lớp học.';
-          if (negItems.length > 0 && posItems.length > 0) {
+          if (hasT2AbsSHDC || hasT2LateSHDC) {
+            const shdcParts = [];
+            if (hasT2AbsSHDC) shdcParts.push('Vắng SHDC');
+            if (hasT2LateSHDC) shdcParts.push('Trễ SHDC');
+            dayComment = `🚨 ${shdcParts.join(' & ')} Thứ 2 — CẦN NHẮC NHỞ GẤP! Yêu cầu học sinh nghiêm túc dự Sinh hoạt dưới cờ đúng giờ và đầy đủ.`;
+          } else if (negItems.length > 0 && posItems.length > 0) {
             dayComment = `Vi phạm: ${negItems.map((x) => `${x.label} (${x.sessionLabel})`).join(', ')}; có cố gắng: ${posItems.map((x) => x.label).join(', ')}.`;
           } else if (hasSkipClass) {
             dayComment = '🚨 Cúp tiết / Bỏ tiết nghiêm trọng (Đã tính +1 buổi vào lũy kế Nghỉ KP) — Cần thông báo Phụ huynh chấn chỉnh ngay.';
@@ -5388,7 +5445,11 @@
                       )))), React.createElement("div", Object.assign({}, {"className": "flex flex-wrap items-center gap-1.5 bg-[#f6f5ef] p-1.5 rounded-lg border border-[#dcd8cb]"}), React.createElement("span", Object.assign({}, {"className": "font-bold text-[#183c42]"}), "Chấm nhanh theo Tổ:"), React.createElement("select", Object.assign({}, {"value": (batchTeam)}, {"onChange": ((e) => setBatchTeam(Number(e.target.value)))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), ([1, 2, 3, 4].map((t) => React.createElement("option", Object.assign({}, {"key": (t)}, {"value": (t)}), "Tổ ", (t))))), React.createElement("select", Object.assign({}, {"value": (batchDayKey)}, {"onChange": ((e) => setBatchDayKey(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), (DAYS_OF_WEEK.map((d) => React.createElement("option", Object.assign({}, {"key": (d.key)}, {"value": (d.key)}), (d.label))))), React.createElement("select", Object.assign({}, {"value": (batchSessionKey)}, {"onChange": ((e) => setBatchSessionKey(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-semibold"}), React.createElement("option", Object.assign({}, {"value": "S"}), "Sáng"), React.createElement("option", Object.assign({}, {"value": "C"}), "Chiều")), React.createElement("select", Object.assign({}, {"value": (batchCodeId)}, {"onChange": ((e) => setBatchCodeId(e.target.value))}, {"className": "px-2 py-1 bg-white border border-[#dcd8cb] rounded font-bold text-[#183c42]"}), (attendanceTypes.map((t) => (
                           React.createElement("option", Object.assign({}, {"key": (t.id)}, {"value": (t.id)}), "[", (t.id), "] ", (t.label))
                         )))), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (handleBatchTeamAttendance)}, {"className": "px-2.5 py-1 bg-[#183c42] text-white rounded font-semibold"}), "Áp dụng Tổ")))), React.createElement("div", Object.assign({}, {"className": "bg-white border border-[#e2dfd5] rounded-xl overflow-x-auto"}), React.createElement("table", Object.assign({}, {"className": "w-full text-left border-collapse text-xs"}), React.createElement("thead", null, React.createElement("tr", Object.assign({}, {"className": "bg-[#efeee6] border-b border-[#e2dfd5] text-[#183c42] font-bold"}), React.createElement("th", Object.assign({}, {"className": "py-2.5 px-2.5 border-r border-[#e2dfd5] min-w-[185px]"}), "Học sinh & Tổ"), (currentWeekDaysWithDates.map((d) => (
-                          React.createElement("th", Object.assign({}, {"key": (d.key)}, {"className": "py-2 px-1.5 border-r border-[#e2dfd5] text-center min-w-[105px]"}), React.createElement("div", null, (d.label)), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-[#8f5c38] font-semibold"}), (d.vnDate)))
+                          React.createElement("th", Object.assign({}, {"key": (d.key)}, {"className": (`py-2 px-1.5 border-r border-[#e2dfd5] text-center min-w-[112px] ${
+                              d.key === 'T2' ? 'bg-amber-50/80' : ''
+                            }`)}), React.createElement("div", null, (d.label)), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-[#8f5c38] font-semibold"}), (d.vnDate)), (d.key === 'T2' && (
+                              React.createElement("div", Object.assign({}, {"className": "text-[9px] text-red-700 font-bold mt-0.5"}), "🚩 SHDC (Trễ/Vắng → Nhắc gấp)")
+                            )))
                         ))), React.createElement("th", Object.assign({}, {"className": "py-2 px-2 border-r border-[#e2dfd5] text-center w-24 bg-[#f6f5ef]"}), "Điểm Tuần"), React.createElement("th", Object.assign({}, {"className": "py-2 px-2 border-r border-[#e2dfd5] text-center w-28 bg-red-50/50 text-red-900"}), "Lũy kế Tháng ", (selectedReportMonth)), React.createElement("th", Object.assign({}, {"className": "py-2 px-2 text-center w-36"}), "Xuất Phiếu PDF"))), React.createElement("tbody", Object.assign({}, {"className": "divide-y divide-[#ece9df]"}), (filteredStudents.map((stu) => {
                         const wCond = calculateWeeklyConductScore(stu.id, selectedWeek);
                         const mCond = calculateMonthlyConductSummary(stu.id, selectedReportMonth);
@@ -5407,8 +5468,15 @@
                               })())), (currentWeekDaysWithDates.map((d) => {
                               const sCodes = getStudentDaySessionCodes(stu.id, d.key, 'S', selectedWeek);
                               const cCodes = getStudentDaySessionCodes(stu.id, d.key, 'C', selectedWeek);
+                              const t2AllCodes = d.key === 'T2' ? [...sCodes, ...cCodes] : [];
+                              const t2HasLate = d.key === 'T2' && t2AllCodes.includes('M');
+                              const t2HasAbsent =
+                                d.key === 'T2' &&
+                                t2AllCodes.some((cd) => cd === 'K' || cd === 'P' || cd === 'CT');
                               return (
-                                React.createElement("td", Object.assign({}, {"key": (d.key)}, {"className": "p-1 border-r border-[#ece9df] align-top"}), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 gap-1"}), (SESSIONS_OF_DAY.map((ses) => {
+                                React.createElement("td", Object.assign({}, {"key": (d.key)}, {"className": (`p-1 border-r border-[#ece9df] align-top ${
+                                    t2HasAbsent || t2HasLate ? 'bg-red-50/70' : d.key === 'T2' ? 'bg-amber-50/25' : ''
+                                  }`)}), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 gap-1"}), (SESSIONS_OF_DAY.map((ses) => {
                                       const codes = ses.key === 'S' ? sCodes : cCodes;
                                       return (
                                         React.createElement("button", Object.assign({}, {"key": (ses.key)}, {"type": "button"}, {"onClick": (() =>
@@ -5425,7 +5493,13 @@
                                               : 'bg-amber-50 border-amber-300 text-[#183c42] font-bold'
                                           }`)}), React.createElement("span", Object.assign({}, {"className": "text-[9px] text-slate-400"}), (ses.shortLabel)), React.createElement("span", null, (codes.length === 0 ? '✓' : codes.join(','))))
                                       );
-                                    }))))
+                                    }))), (d.key === 'T2' && (t2HasAbsent || t2HasLate) && (
+                                    React.createElement("div", Object.assign({}, {"className": "mt-1 space-y-0.5 text-center"}), (t2HasAbsent && (
+                                        React.createElement("div", Object.assign({}, {"className": "px-1 py-0.5 rounded bg-red-600 text-white text-[9px] font-bold leading-tight"}), "🚨 Vắng SHDC • Nhắc gấp")
+                                      )), (t2HasLate && (
+                                        React.createElement("div", Object.assign({}, {"className": "px-1 py-0.5 rounded bg-amber-600 text-white text-[9px] font-bold leading-tight"}), "⚠️ Trễ SHDC • Nhắc gấp")
+                                      )))
+                                  )))
                               );
                             })), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-[#faf9f5]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-sm text-[#183c42]"}), (wCond.score), "đ"), React.createElement("div", Object.assign({}, {"className": "text-[10px] font-semibold text-slate-600"}), (wCond.rank))), React.createElement("td", Object.assign({}, {"className": "py-2 px-2 border-r border-[#ece9df] text-center bg-red-50/20"}), React.createElement("div", Object.assign({}, {"className": (`font-bold text-xs ${mCond.isExcessiveAbsence ? 'text-red-700' : 'text-[#183c42]'}`)}), (mCond.avgScore), "đ (", (mCond.monthRank), ")"), React.createElement("div", Object.assign({}, {"className": "text-[10px] text-slate-600"}), "Lũy kế KP+CT: ", React.createElement("strong", Object.assign({}, {"className": "text-red-700"}), (mCond.absentK), " buổi"), " (", (mCond.rawAbsentK || 0), "K", (mCond.skipClassCT ? ` + ${mCond.skipClassCT}CT` : ''), ") • ", (mCond.absentP), "P"), (wCond.convertedAbsentFromRepeats > 0 && (
                                 React.createElement("div", Object.assign({}, {"className": "text-[9px] font-bold text-[#8f5c38] mt-0.5"}), "⚠️ Lặp lỗi ≈ ", (wCond.convertedAbsentFromRepeats), " buổi nghỉ")
@@ -6341,7 +6415,9 @@
                       })))
                   )))), React.createElement("div", Object.assign({}, {"className": "flex justify-end pt-2 border-t border-[#ece9df]"}), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setWeekScheduleModalOpen(false))}, {"className": "px-5 py-1.5 rounded-lg bg-[#183c42] text-white font-bold"}), "Đóng"))))
           )), (attendanceModal && attendanceModal.student && (
-            React.createElement("div", Object.assign({}, {"className": "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"}), React.createElement("div", Object.assign({}, {"className": "bg-white border border-stone-300 rounded-xl w-full max-w-2xl p-5 shadow-2xl text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between border-b border-stone-200 pb-3 mb-3"}), React.createElement("div", null, React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Cập nhật Chuyên cần Sáng & Chiều: ", (attendanceModal.student.name)), React.createElement("p", Object.assign({}, {"className": "text-xs text-stone-500"}), (attendanceModal.dayLabel), " - Tuần ", (selectedWeek), " (", (currentClassObj.name), ")")), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setAttendanceModal(null))}, {"className": "text-stone-400 hover:text-slate-700"}), React.createElement(X, Object.assign({}, {"className": "w-4 h-4"})))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto"}), (SESSIONS_OF_DAY.map((ses) => {
+            React.createElement("div", Object.assign({}, {"className": "fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 no-print"}), React.createElement("div", Object.assign({}, {"className": "bg-white border border-stone-300 rounded-xl w-full max-w-2xl p-5 shadow-2xl text-xs"}), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between border-b border-stone-200 pb-3 mb-3"}), React.createElement("div", null, React.createElement("h3", Object.assign({}, {"className": "text-sm font-bold text-[#183c42]"}), "Cập nhật Chuyên cần Sáng & Chiều: ", (attendanceModal.student.name)), React.createElement("p", Object.assign({}, {"className": "text-xs text-stone-500"}), (attendanceModal.dayLabel), " - Tuần ", (selectedWeek), " (", (currentClassObj.name), ")")), React.createElement("button", Object.assign({}, {"type": "button"}, {"onClick": (() => setAttendanceModal(null))}, {"className": "text-stone-400 hover:text-slate-700"}), React.createElement(X, Object.assign({}, {"className": "w-4 h-4"})))), (attendanceModal.dayKey === 'T2' && (
+                  React.createElement("div", Object.assign({}, {"className": "mb-3 p-2.5 rounded-lg bg-red-50 border border-red-300 text-red-900 text-[11px] font-semibold"}), "🚩 ", React.createElement("strong", null, "Lưu ý Thứ 2 (Tiết Sinh hoạt dưới cờ - SHDC):"), " Nếu chọn ", React.createElement("strong", null, "[M] Đi học muộn"), " hệ thống tự tính là ", React.createElement("strong", null, "Trễ SHDC — Cần nhắc nhở gấp"), "; nếu chọn ", React.createElement("strong", null, "[K] / [P] / [CT] Vắng"), " hệ thống tự tính là ", React.createElement("strong", null, "Vắng SHDC — Cần nhắc nhở gấp"), "!")
+                )), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto"}), (SESSIONS_OF_DAY.map((ses) => {
                     const currentCodes = getStudentDaySessionCodes(
                       attendanceModal.student.id,
                       attendanceModal.dayKey,
