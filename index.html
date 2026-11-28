@@ -6664,21 +6664,65 @@
                     })))))
             ) : printReportType === 'SEATING_CHART' ? (
               
-              React.createElement("div", Object.assign({}, {"className": "p-5 max-w-4xl mx-auto border-2 border-black bg-white text-xs"}), React.createElement("div", Object.assign({}, {"className": "text-center border-b-2 border-black pb-2 mb-3"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase"}), (schoolName), " • LỚP ", (currentClassObj.name)), React.createElement("h1", Object.assign({}, {"className": "text-base font-extrabold uppercase mt-1"}), "SƠ ĐỒ VỊ TRÍ CHỖ NGỒI & ĐÔI BẠN CÙNG TIẾN (", (schoolYear), ")"), React.createElement("div", Object.assign({}, {"className": "text-[11px]"}), "GVCN: ", React.createElement("strong", null, (teacherName)))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-4 gap-3"}), (Array.from({ length: seatLayoutConfig.cols }, (_, cIdx) => cIdx + 1).map((colNum) => (
-                    React.createElement("div", Object.assign({}, {"key": (colNum)}, {"className": "border border-black p-2"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-center uppercase border-b border-black pb-1 mb-2"}), "Dãy ", (colNum), " ", (activeTeamCount === seatLayoutConfig.cols ? `(Tổ ${colNum})` : `(${activeTeamCount} Tổ)`)), (Array.from({ length: seatLayoutConfig.desksPerCol }, (_, rIdx) => rIdx + 1).map((rowNum) => (
-                        React.createElement("div", Object.assign({}, {"key": (rowNum)}, {"className": "border border-stone-400 p-1.5 mb-1.5 text-[10px]"}), React.createElement("div", Object.assign({}, {"className": "font-bold text-stone-600 flex justify-between"}), React.createElement("span", null, "Bàn ", (rowNum), ":"), (seatLayoutConfig.teamGroupMode === 'BY_DESKS' && (
-                              React.createElement("span", null, "Tổ ", (getTeamNumberForDesk(colNum, rowNum, seatLayoutConfig)))
-                            ))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-2 gap-1 mt-0.5"}), (Array.from({ length: seatLayoutConfig.seatsPerDesk }, (_, sIdx) => sIdx + 1).map((seatNum) => {
-                              const slotKey = `${colNum}-${rowNum}-${seatNum}`;
-                              const occupant = currentStudents.find((s) => s.deskSlot === slotKey);
-                              return (
-                                React.createElement("div", Object.assign({}, {"key": (seatNum)}, {"className": "p-1 border border-stone-300 font-semibold truncate"}), (occupant
-                                    ? `${occupant.frontRowPinned ? '📌 ' : ''}${occupant.name} (Tổ ${occupant.team || 1})`
-                                    : '(Trống)'))
-                              );
-                            }))))
-                      ))))
-                  )))))
+              (() => {
+                const rawClassName = String(currentClassObj.name || '').trim();
+                const displayClassLabel = rawClassName.toUpperCase().startsWith('LỚP')
+                  ? rawClassName
+                  : `LỚP ${rawClassName}`;
+                const numCols = Math.max(1, Number(seatLayoutConfig.cols) || 2);
+                const numDesks = Math.max(1, Number(seatLayoutConfig.desksPerCol) || 5);
+                const numSeats = Math.max(1, Number(seatLayoutConfig.seatsPerDesk) || 2);
+                const seatFontClass =
+                  numCols >= 4 || numSeats >= 4 ? 'text-[9.5px]' : numSeats === 3 ? 'text-[10.5px]' : 'text-[11.5px]';
+
+                return (
+                  React.createElement("div", Object.assign({}, {"className": "print-sheet-onepage w-full max-w-none mx-auto bg-white text-black text-xs"}), React.createElement("div", Object.assign({}, {"className": "text-center border-b-2 border-black pb-2 mb-3"}), React.createElement("div", Object.assign({}, {"className": "font-bold uppercase tracking-wide text-[11px]"}), (schoolName), " • ", (displayClassLabel), " • NĂM HỌC ", (schoolYear)), React.createElement("h1", Object.assign({}, {"className": "text-lg font-extrabold uppercase tracking-wider mt-1"}), "SƠ ĐỒ LỚP HỌC"), React.createElement("div", Object.assign({}, {"className": "text-[11px] mt-0.5"}), "GVCN: ", React.createElement("strong", null, (teacherName)), "  •  Bố trí:", (' '), React.createElement("strong", null, (numCols), " Dãy — ", (numDesks), " Bàn/dãy — ", (numSeats), " Ghế/bàn — ", (activeTeamCount), " Tổ"))), React.createElement("div", Object.assign({}, {"className": "grid grid-cols-12 gap-3 items-center mb-3"}), React.createElement("div", Object.assign({}, {"className": "col-span-3 border-2 border-black bg-stone-100 py-1.5 px-2 text-center font-bold uppercase text-[10.5px]"}), "BÀN GIÁO VIÊN"), React.createElement("div", Object.assign({}, {"className": "col-span-6 border-2 border-black bg-stone-800 text-white py-2 px-3 text-center font-extrabold uppercase tracking-widest text-xs"}), "BẢNG LỚP"), React.createElement("div", Object.assign({}, {"className": "col-span-3 border border-dashed border-black py-1.5 px-2 text-center font-semibold uppercase text-[10px]"}), "Cửa ra vào")), React.createElement("div", Object.assign({}, {"style": ({
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${numCols}, minmax(0, 1fr))`,
+                        gap: '12px',
+                      })}), (Array.from({ length: numCols }, (_, cIdx) => cIdx + 1).map((colNum) => {
+                        const colTeams = Array.from(
+                          new Set(
+                            Array.from({ length: numDesks }, (_, rIdx) =>
+                              getTeamNumberForDesk(colNum, rIdx + 1, seatLayoutConfig)
+                            )
+                          )
+                        );
+                        const colTeamText =
+                          colTeams.length === 1
+                            ? `TỔ ${colTeams[0]}`
+                            : `TỔ ${colTeams.join(' & ')}`;
+
+                        return (
+                          React.createElement("div", Object.assign({}, {"key": (colNum)}, {"className": "border-2 border-black bg-white flex flex-col"}), React.createElement("div", Object.assign({}, {"className": "bg-stone-100 border-b-2 border-black py-1.5 px-2 text-center font-extrabold uppercase text-xs tracking-wide"}), "DÃY ", (colNum), " (", (colTeamText), ")"), React.createElement("div", Object.assign({}, {"className": "p-2 space-y-2 flex-1"}), (Array.from({ length: numDesks }, (_, rIdx) => rIdx + 1).map((rowNum) => {
+                                const deskTeam = getTeamNumberForDesk(colNum, rowNum, seatLayoutConfig);
+                                const prevDeskTeam =
+                                  rowNum > 1
+                                    ? getTeamNumberForDesk(colNum, rowNum - 1, seatLayoutConfig)
+                                    : deskTeam;
+                                const isNewTeamBlock = rowNum > 1 && deskTeam !== prevDeskTeam;
+
+                                return (
+                                  React.createElement("div", Object.assign({}, {"key": (rowNum)}, {"className": (`border border-black bg-white ${
+                                      isNewTeamBlock ? 'mt-3 pt-0' : ''
+                                    }`)}), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between bg-stone-50 border-b border-black px-2 py-0.5 text-[10px] font-bold"}), React.createElement("span", null, "Bàn ", (rowNum)), React.createElement("span", Object.assign({}, {"className": "uppercase"}), "Tổ ", (deskTeam))), React.createElement("div", Object.assign({}, {"style": ({
+                                        display: 'grid',
+                                        gridTemplateColumns: `repeat(${numSeats}, minmax(0, 1fr))`,
+                                      })}), (Array.from({ length: numSeats }, (_, sIdx) => sIdx + 1).map((seatNum) => {
+                                        const slotKey = `${colNum}-${rowNum}-${seatNum}`;
+                                        const occupant = currentStudents.find((s) => s.deskSlot === slotKey);
+                                        return (
+                                          React.createElement("div", Object.assign({}, {"key": (seatNum)}, {"className": (`px-1.5 py-2 text-center flex flex-col items-center justify-center min-h-[42px] ${
+                                              seatNum < numSeats ? 'border-r border-stone-400' : ''
+                                            } ${seatFontClass} leading-tight`)}), React.createElement("span", Object.assign({}, {"className": "text-[8.5px] text-stone-500 font-normal mb-0.5"}), "Ghế ", (seatNum)), React.createElement("span", Object.assign({}, {"className": (occupant ? 'font-bold text-black break-words' : 'text-stone-400 italic')}), (occupant ? occupant.name : '(Trống)')))
+                                        );
+                                      }))))
+                                );
+                              }))))
+                        );
+                      }))), React.createElement("div", Object.assign({}, {"className": "flex items-center justify-between mt-3 pt-2 border-t border-stone-400 text-[10.5px]"}), React.createElement("div", null, "Tổng sĩ số: ", React.createElement("strong", null, (currentStudents.length), " HS"), " • Ngày lập sơ đồ: ", React.createElement("strong", null, (liveDateText))), React.createElement("div", Object.assign({}, {"className": "text-right"}), "GVCN ký tên: ", React.createElement("strong", null, (teacherName)))))
+                );
+              })()
             ) : printReportType === 'INVITATION_SLIP' || printReportType === 'PARENT_INVITATION' ? (
               
               studentsToPrint.map((stu, idx) => {
